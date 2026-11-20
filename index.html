@@ -5,23 +5,29 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Smart Seller</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial,sans-serif;background:#f1f5fb;color:#17243b}
-header{background:#142b50;color:white;text-align:center;padding:24px}
-header h1{margin:0;font-size:28px}
-main{max-width:440px;margin:35px auto;padding:15px}
-.card{background:white;padding:25px;border-radius:14px;box-shadow:0 5px 25px #142b5015}
-.tabs{display:flex;gap:10px;margin-bottom:22px}
+header{background:#142b50;color:white;text-align:center;padding:22px}
+header h1{margin:0}
+main{max-width:480px;margin:30px auto;padding:15px}
+.card{background:white;padding:24px;border-radius:14px;box-shadow:0 5px 25px #142b5015}
+.tabs{display:flex;gap:10px;margin-bottom:20px}
 .tabs button{width:50%;background:#e8eef7;color:#142b50}
 .tabs button.active{background:#1769d2;color:white}
-h2{margin-top:0;text-align:center}
-input,button{width:100%;padding:14px;margin:8px 0;border-radius:8px;font-size:15px}
-input{border:1px solid #ccd5e2}
+h2{text-align:center;margin-top:5px}
+input,select,button{width:100%;padding:13px;margin:8px 0;border-radius:8px;font-size:15px}
+input,select{border:1px solid #ccd5e2;background:white}
 button{border:0;background:#1769d2;color:white;font-weight:bold;cursor:pointer}
+button:disabled{opacity:.6;cursor:wait}
 .hidden{display:none}
 .note{text-align:center;color:#68758a;font-size:13px}
-.message{text-align:center;color:#1769d2;font-size:14px}
+.message{text-align:center;color:#1769d2;font-size:14px;overflow-wrap:anywhere}
+.status{background:#fff4d8;color:#805600;padding:14px;border-radius:8px;text-align:center;font-weight:bold}
+.small{font-size:13px;color:#65718a}
+.logout{background:#65758b}
+hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 </style>
 </head>
 <body>
@@ -29,61 +35,208 @@ button{border:0;background:#1769d2;color:white;font-weight:bold;cursor:pointer}
 <h1>Smart Seller</h1>
 <p>Welcome to Smart Seller</p>
 </header>
+
 <main>
 <div class="card">
+
+<div id="authArea">
 <div class="tabs">
 <button id="loginTab" class="active" onclick="showLogin()">Login</button>
 <button id="registerTab" onclick="showRegister()">Register</button>
 </div>
 
-<form id="loginForm" onsubmit="demoMessage(event,'Login')">
+<form id="loginForm">
 <h2>Customer Login</h2>
-<input type="text" placeholder="Email or Phone Number" required>
-<input type="password" placeholder="Password" required>
-<button type="submit">Login</button>
+<input id="loginIdentity" type="text" placeholder="Email or Phone Number" required>
+<input id="loginPassword" type="password" placeholder="Password" required>
+<button id="loginButton" type="submit">Login</button>
 <p class="note">New customer? Click Register above.</p>
 </form>
 
-<form id="registerForm" class="hidden" onsubmit="demoMessage(event,'Registration')">
+<form id="registerForm" class="hidden">
 <h2>Create Account</h2>
-<input type="text" placeholder="Full Name" required>
-<input type="email" placeholder="Email Address" required>
-<input type="tel" placeholder="Phone Number" required>
-<input type="password" placeholder="Create Password" minlength="8" required>
-<input type="password" placeholder="Confirm Password" minlength="8" required>
-<button type="submit">Create Account</button>
+<input id="fullName" type="text" placeholder="Full Name" required>
+<input id="registerEmail" type="email" placeholder="Gmail / Email Address" required>
+<input id="registerPhone" type="tel" placeholder="Phone Number (Optional)">
+<input id="registerPassword" type="password" placeholder="Create Password (minimum 8 characters)" minlength="8" required>
+<input id="confirmPassword" type="password" placeholder="Confirm Password" minlength="8" required>
+<button id="registerButton" type="submit">Create Account</button>
 <p class="note">Already have an account? Click Login above.</p>
 </form>
+</div>
+
+<div id="dashboard" class="hidden">
+<h2>Customer Dashboard</h2>
+<p id="welcome"></p>
+<div class="status">Verification Pending</div>
+<p class="note">Please complete your KYC verification.</p>
+<hr>
+<h3>Complete KYC</h3>
+<form id="kycForm">
+<label class="small">Select document type</label>
+<select id="documentType" required>
+<option value="">Select Document</option>
+<option value="Passport">Passport</option>
+<option value="National ID">National ID</option>
+<option value="Driving Licence">Driving Licence</option>
+</select>
+<label class="small">Upload document photo</label>
+<input id="kycFile" type="file" accept="image/*,.pdf" required>
+<button id="kycButton" type="submit">Submit KYC</button>
+</form>
+<p id="kycStatus" class="message"></p>
+<hr>
+<button class="logout" onclick="logout()">Logout</button>
+</div>
+
 <p id="message" class="message"></p>
 </div>
 </main>
+
 <script>
+const SUPABASE_URL = "https://biiagnjcyzvqbezabpxz.supabase.co";
+const SUPABASE_KEY = "sb_publishable_QrBZWYfua111aN24MjlXHw_c-Cf5yB1";
+
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const $ = id => document.getElementById(id);
+function msg(text){$("message").textContent=text;}
 function showLogin(){
-document.getElementById('loginForm').classList.remove('hidden');
-document.getElementById('registerForm').classList.add('hidden');
-document.getElementById('loginTab').classList.add('active');
-document.getElementById('registerTab').classList.remove('active');
-document.getElementById('message').textContent='';
+ $("loginForm").classList.remove("hidden");
+ $("registerForm").classList.add("hidden");
+ $("loginTab").classList.add("active");
+ $("registerTab").classList.remove("active");
+ msg("");
 }
 function showRegister(){
-document.getElementById('registerForm').classList.remove('hidden');
-document.getElementById('loginForm').classList.add('hidden');
-document.getElementById('registerTab').classList.add('active');
-document.getElementById('loginTab').classList.remove('active');
-document.getElementById('message').textContent='';
+ $("registerForm").classList.remove("hidden");
+ $("loginForm").classList.add("hidden");
+ $("registerTab").classList.add("active");
+ $("loginTab").classList.remove("active");
+ msg("");
 }
-function demoMessage(event,type){
-event.preventDefault();
-if(type==='Registration'){
-const fields=document.querySelectorAll('#registerForm input');
-if(fields[3].value!==fields[4].value){
-document.getElementById('message').textContent='Passwords do not match.';
-return;
+
+$("registerForm").addEventListener("submit",async e=>{
+ e.preventDefault();
+ const name=$("fullName").value.trim();
+ const email=$("registerEmail").value.trim();
+ const phone=$("registerPhone").value.trim();
+ const password=$("registerPassword").value;
+ const confirm=$("confirmPassword").value;
+ if(password!==confirm){msg("Passwords do not match.");return;}
+ $("registerButton").disabled=true;
+ msg("Creating account...");
+ try{
+  const {data,error}=await db.auth.signUp({
+   email,password,
+   options:{data:{full_name:name,phone:phone}}
+  });
+  if(error) throw error;
+  if(data.session){
+   msg("Account created successfully!");
+   await loadDashboard(data.session.user);
+  }else{
+   msg("Account created. Please verify your email using the link sent to your inbox, then login.");
+   showLogin();
+  }
+ }catch(err){msg(err.message);}
+ finally{$("registerButton").disabled=false;}
+});
+
+$("loginForm").addEventListener("submit",async e=>{
+ e.preventDefault();
+ const identity=$("loginIdentity").value.trim();
+ const password=$("loginPassword").value;
+ if(!identity.includes("@")){
+  msg("Phone number login is not connected yet. Please login using your registered email.");
+  return;
+ }
+ $("loginButton").disabled=true;
+ msg("Logging in...");
+ try{
+  const {data,error}=await db.auth.signInWithPassword({
+   email:identity,password
+  });
+  if(error) throw error;
+  await loadDashboard(data.user);
+ }catch(err){msg(err.message);}
+ finally{$("loginButton").disabled=false;}
+});
+
+async function loadDashboard(user){
+ $("authArea").classList.add("hidden");
+ $("dashboard").classList.remove("hidden");
+ $("welcome").textContent="Welcome, "+(user.user_metadata.full_name||user.email);
+ msg("");
+ await loadKyc(user);
 }
+
+async function loadKyc(user){
+ const {data,error}=await db.from("kyc_submissions")
+  .select("document_type,status,admin_note,created_at")
+  .eq("customer_id",user.id)
+  .order("created_at",{ascending:false})
+  .limit(1);
+ if(error){$("kycStatus").textContent="KYC status could not be loaded.";return;}
+ if(data && data.length){
+  const item=data[0];
+  $("kycStatus").textContent=
+   "Your KYC: "+item.status+
+   (item.admin_note ? " — Admin note: "+item.admin_note : "");
+ }else{
+  $("kycStatus").textContent="No KYC submitted yet.";
+ }
 }
-document.getElementById('message').textContent=
-'Form design ready. Account system will be connected next.';
+
+$("kycForm").addEventListener("submit",async e=>{
+ e.preventDefault();
+ const {data:{user}}=await db.auth.getUser();
+ if(!user){msg("Please login again.");return;}
+ const file=$("kycFile").files[0];
+ const type=$("documentType").value;
+ if(!file||!type)return;
+ if(file.size>5*1024*1024){
+  $("kycStatus").textContent="File must be smaller than 5 MB.";
+  return;
+ }
+ $("kycButton").disabled=true;
+ $("kycStatus").textContent="Uploading document...";
+ try{
+  const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
+  const path=user.id+"/"+Date.now()+"_"+safeName;
+  const {error:uploadError}=await db.storage
+   .from("kyc-documents").upload(path,file);
+  if(uploadError)throw uploadError;
+
+  const {error:insertError}=await db.from("kyc_submissions").insert({
+   customer_id:user.id,
+   document_type:type,
+   document_url:path,
+   status:"Pending"
+  });
+  if(insertError)throw insertError;
+
+  $("kycStatus").textContent="KYC submitted successfully. Status: Pending.";
+  $("kycForm").reset();
+ }catch(err){
+  $("kycStatus").textContent="KYC error: "+err.message;
+ }
+ finally{$("kycButton").disabled=false;}
+});
+
+async function logout(){
+ await db.auth.signOut();
+ $("dashboard").classList.add("hidden");
+ $("authArea").classList.remove("hidden");
+ $("kycStatus").textContent="";
+ $("loginForm").reset();
+ showLogin();
 }
+
+(async()=>{
+ const {data}=await db.auth.getSession();
+ if(data.session)await loadDashboard(data.session.user);
+})();
 </script>
 </body>
 </html>
