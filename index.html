@@ -254,8 +254,58 @@ $("newPasswordForm").addEventListener("submit",async e=>{
  }
  finally{$("updatePasswordButton").disabled=false;}
 });
+async function loadProducts(){
+ const box = $("productsList");
+ box.innerHTML = "<p>Loading products...</p>";
 
-async function loadDashboard(user){
+ try {
+  const {data,error} = await db
+   .from("products")
+   .select("id,name,description,price,category,image")
+   .eq("is_active",true)
+   .order("id",{ascending:false});
+
+  if(error) throw error;
+
+  if(!data || data.length===0){
+   box.innerHTML="<p>No products available.</p>";
+   return;
+  }
+
+  box.innerHTML="";
+
+  data.forEach(product=>{
+   const item=document.createElement("div");
+   item.style.cssText="border:1px solid #ddd;padding:15px;margin:12px 0;border-radius:10px;background:#fff";
+
+   const title=document.createElement("h3");
+   title.textContent=product.name;
+
+   const description=document.createElement("p");
+   description.textContent=product.description || "";
+
+   const price=document.createElement("p");
+   price.textContent="Price: $"+Number(product.price).toFixed(2);
+
+   item.append(title,description,price);
+
+   if(product.image){
+    const img=document.createElement("img");
+    img.src=product.image;
+    img.alt=product.name;
+    img.style.cssText="width:100%;max-height:180px;object-fit:contain";
+    item.appendChild(img);
+   }
+
+   box.appendChild(item);
+  });
+
+ }catch(error){
+  box.textContent="Products error: "+error.message;
+ }
+}
+async function loadDashboard(""){
+await loadProducts();
  $("authArea").classList.add("hidden");
  $("dashboard").classList.remove("hidden");
  $("welcome").textContent="Welcome, "+(user.user_metadata.full_name||user.email);
