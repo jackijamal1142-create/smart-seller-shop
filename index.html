@@ -1,1 +1,72 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Seller</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f3f6fb;
+      color: #172033;
+    }
+    header {
+      background: #142b50;
+      color: white;
+      padding: 22px;
+      text-align: center;
+    }
+    main {
+      max-width: 600px;
+      margin: 35px auto;
+      padding: 20px;
+    }
+    .card {
+      background: white;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 3px 15px #00000012;
+    }
+    h2 { margin-top: 0; }
+    input, button {
+      width: 100%;
+      padding: 13px;
+      margin: 8px 0;
+      border-radius: 7px;
+      font-size: 16px;
+    }
+    input { border: 1px solid #ccd3df; }
+    button {
+      border: 0;
+      background: #1769d2;
+      color: white;
+      cursor: pointer;
+    }
+    .note { color: #65718a; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Smart Seller</h1>
+    <p>Welcome to Smart Seller</p>
+  </header>
+
+  <main>
+    <div class="card">
+      <h2>Customer Login</h2>
+      <p class="note">Customer account login will be connected in the next step.</p>
+      <input type="email" placeholder="Email address">
+      <input type="password" placeholder="Password">
+      <input type="tel" placeholder="Mobile number">
+      <button type="button" onclick="alert('Login system will be connected next.')">
+        Login
+      </button>
+      <p class="note">Need help? Contact Customer Service.</p>
+    </div>
+  </main>
+</body>
+</html>
+
