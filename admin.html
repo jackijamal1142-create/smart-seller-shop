@@ -3,203 +3,286 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Smart Seller - Admin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Seller Admin Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-body{font-family:Arial;background:#f3f5f9;margin:0;padding:20px;color:#222}
-main{max-width:950px;margin:auto}
-.card{background:white;padding:18px;margin:14px 0;border-radius:10px;box-shadow:0 2px 8px #ddd}
-input,button{padding:12px;margin:6px 0;box-sizing:border-box}
-input{width:100%;border:1px solid #ccc;border-radius:6px}
-button{background:#174ea6;color:white;border:0;border-radius:6px;cursor:pointer}
-button.reject{background:#b3261e}
-button:disabled{opacity:.5}
-.hidden{display:none}
-small{color:#666}
-img{max-width:220px;display:block;margin:10px 0;border-radius:6px}
+body {
+  font-family: Arial, sans-serif;
+  background: #f3f4f6;
+  margin: 0;
+  padding: 20px;
+}
+.container {
+  max-width: 900px;
+  margin: auto;
+}
+.card {
+  background: white;
+  padding: 18px;
+  margin: 15px 0;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px #ddd;
+}
+input, button {
+  padding: 11px;
+  margin: 5px 0;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+input {
+  width: 95%;
+}
+button {
+  cursor: pointer;
+  border: none;
+  color: white;
+  background: #2563eb;
+}
+.approve { background: #16a34a; }
+.reject { background: #dc2626; }
+.logout { background: #555; }
+.status {
+  font-weight: bold;
+  margin: 10px 0;
+}
+a { color: #2563eb; }
+.hidden { display: none; }
 </style>
 </head>
 <body>
-<main>
+<div class="container">
+
 <h1>Smart Seller Admin Dashboard</h1>
 
-<section class="card" id="loginBox">
-<h2>Admin Login</h2>
-<input id="email" type="email" placeholder="Admin Gmail">
-<input id="password" type="password" placeholder="Password">
-<button onclick="login()">Login</button>
-<p id="loginMessage"></p>
-</section>
-
-<section id="dashboard" class="hidden">
-<div class="card">
-<h2>Welcome, Admin</h2>
-<button onclick="loadKYC()">Refresh KYC</button>
-<button onclick="logout()">Logout</button>
-<p id="message"></p>
+<div id="loginBox" class="card">
+  <h2>Admin Login</h2>
+  <input id="email" type="email" placeholder="Admin Email">
+  <input id="password" type="password" placeholder="Password">
+  <br>
+  <button id="loginBtn" onclick="login()">Login</button>
+  <p id="loginMessage"></p>
 </div>
 
-<div class="card">
-<h2>KYC Submissions</h2>
-<div id="kycList">Loading...</div>
+<div id="dashboard" class="hidden">
+  <h2>Welcome, Admin</h2>
+  <button onclick="loadKYC()">Refresh KYC</button>
+  <button class="logout" onclick="logout()">Logout</button>
+
+  <h2>KYC Submissions</h2>
+  <div id="kycList">Loading...</div>
 </div>
-</section>
-</main>
+
+</div>
 
 <script>
 const SUPABASE_URL = "https://biiagnjcyzvqbezabpxz.supabase.co";
 const SUPABASE_KEY = "sb_publishable_QrBZWYfua111aN24MjlXHw_c-Cf5yB1";
-const db = window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
-const $ = id => document.getElementById(id);
+const db = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
 
-async function login(){
-  $("loginMessage").textContent = "Checking...";
-  const email = $("email").value.trim();
-  const password = $("password").value;
+function message(text) {
+  document.getElementById("loginMessage").textContent = text;
+}
 
-  const {error} = await db.auth.signInWithPassword({email,password});
-  if(error){
-    $("loginMessage").textContent = error.message;
+async function login() {
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+
+  if (!email || !password) {
+    message("Email aur password enter karein.");
     return;
   }
+
+  message("Logging in...");
+
+  const { error } = await db.auth.signInWithPassword({
+    email,
+    password
+  });
+
+  if (error) {
+    message(error.message);
+    return;
+  }
+
   await checkAdmin();
 }
 
-async function checkAdmin(){
-  const {data:{user},error:authError} = await db.auth.getUser();
+async function checkAdmin() {
+  const { data: sessionData } = await db.auth.getSession();
+  const user = sessionData.session?.user;
 
-  if(authError || !user){
-    $("loginBox").classList.remove("hidden");
-    $("dashboard").classList.add("hidden");
+  if (!user) {
+    showLogin();
     return;
   }
 
-  const {data:role,error} = await db
+  const { data, error } = await db
     .from("user_roles")
     .select("role")
-    .eq("user_id",user.id)
-    .eq("role","admin")
+    .eq("user_id", user.id)
+    .eq("role", "admin")
     .maybeSingle();
 
-  if(error){
-    $("loginMessage").textContent = "Admin permission error: " + error.message;
-    return;
-  }
-
-  if(!role){
-    $("loginMessage").textContent = "Access denied. Admin account required.";
+  if (error || !data) {
+    alert("Admin permission nahi mili.");
     await db.auth.signOut();
+    showLogin();
     return;
   }
 
-  $("loginBox").classList.add("hidden");
-  $("dashboard").classList.remove("hidden");
+  document.getElementById("loginBox").classList.add("hidden");
+  document.getElementById("dashboard").classList.remove("hidden");
+
   await loadKYC();
 }
 
-async function loadKYC(){
-  $("message").textContent = "Loading KYC...";
-  $("kycList").textContent = "Loading...";
+function showLogin() {
+  document.getElementById("loginBox").classList.remove("hidden");
+  document.getElementById("dashboard").classList.add("hidden");
+}
 
-  const {data:rows,error} = await db
+async function logout() {
+  await db.auth.signOut();
+  showLogin();
+}
+
+async function loadKYC() {
+  const list = document.getElementById("kycList");
+  list.textContent = "Loading KYC records...";
+
+  const { data, error } = await db
     .from("kyc_submissions")
-    .select("id,customer_id,document_type,document_url,status,admin_note,created_at")
-    .order("created_at",{ascending:false});
+    .select("*")
+    .order("created_at", { ascending: false });
 
-  if(error){
-    $("kycList").textContent = "KYC error: " + error.message;
-    $("message").textContent = "";
+  if (error) {
+    list.textContent = "KYC load error: " + error.message;
     return;
   }
 
-  $("message").textContent = "KYC records: " + rows.length;
+  list.innerHTML = "";
 
-  if(!rows.length){
-    $("kycList").textContent = "No KYC submissions found.";
+  if (!data || data.length === 0) {
+    list.textContent = "No KYC submissions found.";
     return;
   }
 
-  $("kycList").innerHTML = "";
+  const heading = document.createElement("h3");
+  heading.textContent = "KYC records: " + data.length;
+  list.appendChild(heading);
 
-  for(const item of rows){
+  for (const item of data) {
     const card = document.createElement("div");
     card.className = "card";
 
-    const heading = document.createElement("h3");
-    heading.textContent = item.document_type || "Document";
-    card.appendChild(heading);
+    const title = document.createElement("h3");
+    title.textContent = item.document_type || "KYC Document";
+    card.appendChild(title);
 
-    const details = document.createElement("p");
-    details.textContent =
-      "Customer ID: " + item.customer_id +
-      " | Status: " + item.status +
-      " | Date: " + new Date(item.created_at).toLocaleString();
-    card.appendChild(details);
+    const customer = document.createElement("p");
+    customer.textContent = "Customer ID: " + item.customer_id;
+    card.appendChild(customer);
 
-    if(item.document_url){
-      const {data:file,error:fileError} = await db.storage
+    const status = (item.status || "pending").toLowerCase();
+
+    const statusText = document.createElement("p");
+    statusText.className = "status";
+
+    if (status === "approved") {
+      statusText.textContent = "Status: Completed";
+      statusText.style.color = "green";
+    } else if (status === "rejected") {
+      statusText.textContent = "Status: Rejected";
+      statusText.style.color = "red";
+    } else {
+      statusText.textContent = "Status: Pending";
+      statusText.style.color = "#b45309";
+    }
+
+    card.appendChild(statusText);
+
+    const date = document.createElement("p");
+    date.textContent = "Date: " +
+      (item.created_at ? new Date(item.created_at).toLocaleString() : "N/A");
+    card.appendChild(date);
+
+    if (item.document_url) {
+      const { data: signed, error: signedError } = await db.storage
         .from("kyc-documents")
-        .createSignedUrl(item.document_url,300);
+        .createSignedUrl(item.document_url, 3600);
 
-      if(!fileError && file?.signedUrl){
+      if (!signedError && signed?.signedUrl) {
         const link = document.createElement("a");
-        link.href = file.signedUrl;
+        link.href = signed.signedUrl;
         link.target = "_blank";
-        link.rel = "noopener";
+        link.rel = "noopener noreferrer";
         link.textContent = "View uploaded document";
         card.appendChild(link);
       } else {
         const note = document.createElement("p");
-        note.textContent = "Document link error: " + (fileError?.message || "Unavailable");
+        note.textContent = "Document link unavailable.";
         card.appendChild(note);
       }
     }
 
-    const approve = document.createElement("button");
-    approve.textContent = "Approve";
-    approve.onclick = () => updateKYC(item.id,"approved");
-    card.appendChild(approve);
+    if (status !== "approved" && status !== "rejected") {
+      const approveBtn = document.createElement("button");
+      approveBtn.className = "approve";
+      approveBtn.textContent = "Approve";
+      approveBtn.onclick = () => updateKYC(item.id, "approved");
+      card.appendChild(approveBtn);
 
-    const reject = document.createElement("button");
-    reject.textContent = "Reject";
-    reject.className = "reject";
-    reject.onclick = () => updateKYC(item.id,"rejected");
-    card.appendChild(reject);
+      const rejectBtn = document.createElement("button");
+      rejectBtn.className = "reject";
+      rejectBtn.textContent = "Reject";
+      rejectBtn.onclick = () => updateKYC(item.id, "rejected");
+      card.appendChild(rejectBtn);
+    }
 
-    $("kycList").appendChild(card);
+    list.appendChild(card);
   }
 }
 
-async function updateKYC(id,status){
-  if(!confirm("Are you sure you want to mark this KYC as " + status + "?")) return;
+async function updateKYC(id, newStatus) {
+  const confirmText = newStatus === "approved"
+    ? "KYC approve karna hai?"
+    : "KYC reject karna hai?";
 
-  const {error} = await db
+  if (!confirm(confirmText)) return;
+
+  const { error } = await db
     .from("kyc_submissions")
-    .update({status})
-    .eq("id",id);
+    .update({ status: newStatus })
+    .eq("id", id);
 
-  if(error){
+  if (error) {
     alert("Update error: " + error.message);
     return;
   }
 
-  alert("KYC status updated: " + status);
+  alert(
+    newStatus === "approved"
+      ? "KYC Completed successfully!"
+      : "KYC Rejected successfully!"
+  );
+
   await loadKYC();
 }
 
-async function logout(){
-  await db.auth.signOut();
-  $("dashboard").classList.add("hidden");
-  $("loginBox").classList.remove("hidden");
-  $("password").value = "";
-}
-
-db.auth.getSession().then(({data})=>{
-  if(data.session) checkAdmin();
+db.auth.onAuthStateChange((event, session) => {
+  if (session) {
+    setTimeout(() => checkAdmin(), 0);
+  } else {
+    showLogin();
+  }
 });
+
+checkAdmin();
 </script>
 </body>
 </html>
-
