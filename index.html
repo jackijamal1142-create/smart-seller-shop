@@ -6,7 +6,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Smart Seller</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial,sans-serif;background:#f1f5fb;color:#17243b;padding-bottom:85px}
@@ -34,10 +33,10 @@ button:disabled{opacity:.6;cursor:wait}
 .pending{background:#fff4d8;color:#805600}
 .logout{background:#65758b}
 .linkButton{background:none;color:#1769d2;text-decoration:underline;padding:5px}
+.secondary{background:#65758b}
 hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 .stat{background:#f1f6ff;padding:16px;border-radius:10px;margin:10px 0}
 .stat strong{display:block;font-size:22px;color:#1769d2;margin-top:7px}
-.section-title{margin-top:25px}
 .bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:100;background:white;box-shadow:0 -3px 18px #142b5020;display:grid;grid-template-columns:repeat(5,1fr);padding:7px 4px calc(7px + env(safe-area-inset-bottom))}
 .bottom-nav button{background:white;color:#53647b;border-radius:8px;margin:0;padding:9px 2px;font-size:12px}
 .bottom-nav button.active{background:#e8f1ff;color:#1769d2}
@@ -52,7 +51,6 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 }
 </style>
 </head>
-
 <body>
 <header>
 <h1>Smart Seller</h1>
@@ -104,10 +102,8 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 
 <!-- DASHBOARD -->
 <div id="dashboard" class="hidden">
-
 <div id="welcome" class="note"></div>
 
-<!-- SHOP -->
 <section id="shopPage" class="page">
 <h2>Shop</h2>
 <p class="note">Browse available products.</p>
@@ -115,7 +111,6 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 <button onclick="loadShop()">Refresh Shop</button>
 </section>
 
-<!-- PRODUCTS -->
 <section id="productsPage" class="page hidden">
 <h2>My Products</h2>
 <p class="note">Products you have selected.</p>
@@ -123,7 +118,6 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 <button onclick="loadMyProducts()">Refresh Products</button>
 </section>
 
-<!-- ORDERS -->
 <section id="ordersPage" class="page hidden">
 <h2>My Orders</h2>
 <p class="note">Orders sent to you by the admin.</p>
@@ -135,47 +129,49 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 <section id="walletPage" class="page hidden">
 <h2>My Wallet</h2>
 
-<div class="stat">
-Available Balance
-<strong id="walletBalance">$0.00</strong>
-</div>
-
-<div class="stat">
-Profit
-<strong id="walletProfit">$0.00</strong>
-</div>
-
-<div class="stat">
-Applied Balance
-<strong id="walletApplied">$0.00</strong>
-</div>
-
+<div class="stat">Available Balance<strong id="walletBalance">$0.00</strong></div>
+<div class="stat">Profit<strong id="walletProfit">$0.00</strong></div>
+<div class="stat">Applied Balance<strong id="walletApplied">$0.00</strong></div>
 <p id="walletMessage" class="message"></p>
 
 <hr>
 <h3>Withdraw</h3>
-<p class="small">Select your withdrawal method.</p>
+<p class="small">Click Withdraw and select your withdrawal method.</p>
 
+<!-- FIRST SHOW ONLY WITHDRAW BUTTON -->
+<button id="withdrawOpenButton" type="button" onclick="openWithdrawOptions()">Withdraw</button>
+
+<!-- METHOD SELECTION -->
+<div id="withdrawOptions" class="hidden">
+<h3>Select Withdrawal Method</h3>
 <div class="tabs">
-<button id="usdtTab" class="active" type="button" onclick="showWithdraw('usdt')">USDT</button>
-<button id="bankTab" type="button" onclick="showWithdraw('bank')">Bank Account</button>
+<button type="button" onclick="showWithdraw('usdt')">USDT</button>
+<button type="button" onclick="showWithdraw('bank')">Bank Account</button>
+</div>
+<button type="button" class="secondary" onclick="closeWithdraw()">Back</button>
 </div>
 
-<form id="usdtForm">
+<!-- USDT FORM -->
+<form id="usdtForm" class="hidden">
 <h3>USDT Withdrawal</h3>
+<p class="small">Enter your USDT wallet address and withdrawal amount.</p>
 <input id="usdtAddress" type="text" placeholder="USDT Wallet Address" required>
 <input id="usdtAmount" type="number" min="0.01" step="0.01" placeholder="Withdrawal Amount (USD)" required>
 <button id="usdtSubmit">Submit USDT Withdrawal</button>
+<button type="button" class="secondary" onclick="backToMethods()">Back</button>
 </form>
 
+<!-- BANK FORM -->
 <form id="bankForm" class="hidden">
 <h3>Bank Account Withdrawal</h3>
+<p class="small">Enter your bank account details and withdrawal amount.</p>
 <input id="bankAccountName" type="text" placeholder="Account Holder Name" required>
 <input id="bankName" type="text" placeholder="Bank Name" required>
 <input id="bankIban" type="text" placeholder="IBAN Number" required>
 <input id="bankAccountNumber" type="text" placeholder="Account Number" required>
 <input id="bankAmount" type="number" min="0.01" step="0.01" placeholder="Withdrawal Amount (USD)" required>
 <button id="bankSubmit">Submit Bank Withdrawal</button>
+<button type="button" class="secondary" onclick="backToMethods()">Back</button>
 </form>
 
 <p id="withdrawMessage" class="message"></p>
@@ -183,15 +179,13 @@ Applied Balance
 <hr>
 <h3>Withdrawal History</h3>
 <div id="withdrawalHistory">Loading...</div>
-<button onclick="loadWithdrawals()">Refresh Withdrawal History</button>
-
-<p class="small">Withdrawal requests are subject to review. Submission does not mean payment has been completed. Any fees and requirements should be explained clearly.</p>
+<button type="button" onclick="loadWithdrawals()">Refresh Withdrawal History</button>
+<p class="small">Withdrawal requests are subject to admin review. Submission does not mean payment has been completed.</p>
 </section>
 
 <!-- PROFILE -->
 <section id="profilePage" class="page hidden">
 <h2>My Profile</h2>
-
 <div class="data-card">
 <p><strong>Name:</strong> <span id="profileName">-</span></p>
 <p><strong>Email:</strong> <span id="profileEmail">-</span></p>
@@ -200,7 +194,6 @@ Applied Balance
 </div>
 
 <div id="verificationStatus" class="status pending">Verification pending</div>
-
 <div id="kycSection">
 <h3>Complete KYC</h3>
 <p class="note">Please submit your identity document.</p>
@@ -220,17 +213,14 @@ Applied Balance
 <hr>
 <h3>Customer Service</h3>
 <p class="note">Send a message to Customer Service and check the admin's reply.</p>
-
 <form id="supportForm">
 <textarea id="supportInput" placeholder="Write your message here..." required></textarea>
 <button id="supportButton">Send Message</button>
 </form>
-
 <p id="supportMessage" class="message"></p>
 <h3>Messages</h3>
 <div id="supportList">Loading messages...</div>
 <button onclick="loadSupport()">Refresh Messages</button>
-
 <hr>
 <button class="logout" type="button" onclick="logout()">Logout</button>
 </section>
@@ -240,7 +230,6 @@ Applied Balance
 </div>
 </main>
 
-<!-- FIXED BOTTOM NAVIGATION -->
 <nav id="bottomNav" class="bottom-nav hidden">
 <button class="active" data-page="shop" onclick="openPage('shop')"><span>🏪</span>Shop</button>
 <button data-page="products" onclick="openPage('products')"><span>📦</span>Products</button>
@@ -251,12 +240,11 @@ Applied Balance
 
 <script>
 // SUPABASE CONNECTION
-const SUPABASE_URL = "https://biiagnjcyzvqbezabpxz.supabase.co";
-const SUPABASE_KEY = "sb_publishable_QrBZWYfua111aN24MjlXHw_c-Cf5yB1";
-const db = window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-
-const $ = id => document.getElementById(id);
-let currentUser = null;
+const SUPABASE_URL="https://biiagnjcyzvqbezabpxz.supabase.co";
+const SUPABASE_KEY="sb_publishable_QrBZWYfua111aN24MjlXHw_c-Cf5yB1";
+const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const $=id=>document.getElementById(id);
+let currentUser=null;
 
 function msg(t){$("message").textContent=t;}
 function money(v){return "$"+Number(v||0).toFixed(2);}
@@ -264,8 +252,7 @@ function safeText(v){return v===null||v===undefined||v===""?"-":String(v);}
 
 // AUTH SCREENS
 function hideForms(){
-["loginForm","registerForm","forgotForm","newPasswordForm"]
-.forEach(id=>$(id).classList.add("hidden"));
+["loginForm","registerForm","forgotForm","newPasswordForm"].forEach(id=>$(id).classList.add("hidden"));
 }
 window.showLogin=function(){
 hideForms();
@@ -307,17 +294,10 @@ if(password!==$("confirmPassword").value){msg("Passwords do not match.");return;
 $("registerButton").disabled=true;
 msg("Creating account...");
 try{
-const {data,error}=await db.auth.signUp({
-email,password,
-options:{data:{full_name:name,phone:phone}}
-});
+const {data,error}=await db.auth.signUp({email,password,options:{data:{full_name:name,phone}}});
 if(error)throw error;
 if(data.session)await loadDashboard(data.session.user);
-else{
-$("registerForm").reset();
-showLogin();
-msg("Account created. Verify your email, then login.");
-}
+else{$("registerForm").reset();showLogin();msg("Account created. Verify your email, then login.");}
 }catch(err){msg("Registration error: "+err.message);}
 $("registerButton").disabled=false;
 });
@@ -379,7 +359,6 @@ $("bottomNav").classList.remove("hidden");
 $("welcome").textContent="Welcome, "+(user.user_metadata?.full_name||user.email);
 await loadProfile();
 openPage("shop");
-loadShop();
 }
 
 // NAVIGATION
@@ -393,7 +372,7 @@ b.classList.toggle("active",b.dataset.page===page);
 if(page==="shop")loadShop();
 if(page==="products")loadMyProducts();
 if(page==="orders")loadOrders();
-if(page==="wallet"){loadWallet();loadWithdrawals();}
+if(page==="wallet"){loadWallet();loadWithdrawals();resetWithdrawScreen();}
 if(page==="profile"){loadProfile();loadKyc(currentUser);loadSupport();}
 };
 
@@ -402,8 +381,7 @@ window.loadShop=async function(){
 const box=$("shopList");
 box.textContent="Loading products...";
 try{
-const {data,error}=await db.from("products")
-.select("id,name,price,category").order("id",{ascending:false});
+const {data,error}=await db.from("products").select("id,name,price,category").order("id",{ascending:false});
 if(error)throw error;
 if(!data||!data.length){box.textContent="No products available.";return;}
 box.innerHTML="";
@@ -423,11 +401,8 @@ card.append(title,cat,price,btn);box.appendChild(card);
 async function addProduct(p){
 try{
 const {error}=await db.from("customer_products").insert({
-customer_id:currentUser.id,
-product_id:String(p.id),
-product_name:p.name||"Product",
-price:Number(p.price||0),
-category:p.category||""
+customer_id:currentUser.id,product_id:String(p.id),
+product_name:p.name||"Product",price:Number(p.price||0),category:p.category||""
 });
 if(error)throw error;
 alert("Product added successfully.");
@@ -440,9 +415,8 @@ window.loadMyProducts=async function(){
 const box=$("myProductsList");
 box.textContent="Loading...";
 try{
-const {data,error}=await db.from("customer_products")
-.select("*").eq("customer_id",currentUser.id)
-.order("created_at",{ascending:false});
+const {data,error}=await db.from("customer_products").select("*")
+.eq("customer_id",currentUser.id).order("created_at",{ascending:false});
 if(error)throw error;
 if(!data||!data.length){box.textContent="You have not added any products yet.";return;}
 box.innerHTML="";
@@ -471,8 +445,7 @@ const card=document.createElement("div");card.className="data-card";
 const title=document.createElement("h3");
 title.textContent=o.product_name||o.products_name||o["products name"]||"Order";
 const quantity=document.createElement("p");quantity.textContent="Quantity: "+safeText(o.quantity);
-const amount=document.createElement("p");
-amount.textContent="Amount: "+money(o.total_amount??o["total amount"]??o.amount);
+const amount=document.createElement("p");amount.textContent="Amount: "+money(o.total_amount??o["total amount"]??o.amount);
 const status=document.createElement("p");status.textContent="Status: "+safeText(o.status);
 card.append(title,quantity,amount,status);box.appendChild(card);
 });
@@ -487,42 +460,53 @@ const {data,error}=await db.from("wallet_transactions")
 .select("amount,transaction_type,status,description,created_at")
 .eq("customer_id",currentUser.id);
 if(error)throw error;
-
 let available=0,profit=0,applied=0;
 (data||[]).forEach(t=>{
 const type=String(t.transaction_type||"").toLowerCase();
 const status=String(t.status||"").toLowerCase();
 const amount=Number(t.amount||0);
 if(!["approved","completed","success","successful","paid"].includes(status))return;
-
-if(type.includes("profit")){
-profit+=amount;
-available+=amount;
-}else if(type.includes("applied")){
-applied+=amount;
-}else if(type.includes("withdraw")||type.includes("debit")||type.includes("payment")||type.includes("purchase")){
-available-=amount;
-}else if(type.includes("credit")||type.includes("deposit")||type.includes("add")||type.includes("income")||type.includes("earning")){
-available+=amount;
-}
+if(type.includes("profit")){profit+=amount;available+=amount;}
+else if(type.includes("applied")){applied+=amount;}
+else if(type.includes("withdraw")||type.includes("debit")||type.includes("payment")||type.includes("purchase")){available-=amount;}
+else if(type.includes("credit")||type.includes("deposit")||type.includes("add")||type.includes("income")||type.includes("earning")){available+=amount;}
 });
 $("walletBalance").textContent=money(available);
 $("walletProfit").textContent=money(profit);
 $("walletApplied").textContent=money(applied);
 $("walletMessage").textContent="Wallet transaction records loaded.";
-}catch(err){
-$("walletMessage").textContent="Wallet error: "+err.message;
-}
+}catch(err){$("walletMessage").textContent="Wallet error: "+err.message;}
 };
 
-// WITHDRAW TABS
-window.showWithdraw=function(method){
-const usdt=method==="usdt";
-$("usdtForm").classList.toggle("hidden",!usdt);
-$("bankForm").classList.toggle("hidden",usdt);
-$("usdtTab").classList.toggle("active",usdt);
-$("bankTab").classList.toggle("active",!usdt);
+// WITHDRAWAL SCREEN FLOW
+window.resetWithdrawScreen=function(){
+$("withdrawOptions").classList.add("hidden");
+$("usdtForm").classList.add("hidden");
+$("bankForm").classList.add("hidden");
+$("withdrawOpenButton").classList.remove("hidden");
 $("withdrawMessage").textContent="";
+};
+window.openWithdrawOptions=function(){
+$("withdrawOpenButton").classList.add("hidden");
+$("withdrawOptions").classList.remove("hidden");
+$("usdtForm").classList.add("hidden");
+$("bankForm").classList.add("hidden");
+$("withdrawMessage").textContent="";
+};
+window.closeWithdraw=function(){
+resetWithdrawScreen();
+};
+window.showWithdraw=function(method){
+$("withdrawOptions").classList.add("hidden");
+$("withdrawOpenButton").classList.add("hidden");
+$("usdtForm").classList.toggle("hidden",method!=="usdt");
+$("bankForm").classList.toggle("hidden",method!=="bank");
+$("withdrawMessage").textContent="";
+};
+window.backToMethods=function(){
+$("usdtForm").classList.add("hidden");
+$("bankForm").classList.add("hidden");
+$("withdrawOptions").classList.remove("hidden");
 };
 
 // USDT WITHDRAWAL
@@ -535,19 +519,20 @@ $("withdrawMessage").textContent="Enter a valid USDT address and amount.";
 return;
 }
 $("usdtSubmit").disabled=true;
+$("withdrawMessage").textContent="Submitting request...";
 try{
-const details=JSON.stringify({usdt_address:address});
 const {error}=await db.from("withdrawals").insert({
 customer_id:currentUser.id,
 amount:amount,
 method:"USDT",
-account_details:details,
+account_details:JSON.stringify({usdt_address:address}),
 status:"Pending"
 });
 if(error)throw error;
 $("usdtForm").reset();
 $("withdrawMessage").textContent="USDT withdrawal request submitted. Status: Pending.";
 await loadWithdrawals();
+resetWithdrawScreen();
 }catch(err){$("withdrawMessage").textContent="Withdrawal error: "+err.message;}
 $("usdtSubmit").disabled=false;
 });
@@ -567,6 +552,7 @@ $("withdrawMessage").textContent="Please complete all bank details and enter a v
 return;
 }
 $("bankSubmit").disabled=true;
+$("withdrawMessage").textContent="Submitting request...";
 try{
 const {error}=await db.from("withdrawals").insert({
 customer_id:currentUser.id,
@@ -579,6 +565,7 @@ if(error)throw error;
 $("bankForm").reset();
 $("withdrawMessage").textContent="Bank withdrawal request submitted. Status: Pending.";
 await loadWithdrawals();
+resetWithdrawScreen();
 }catch(err){$("withdrawMessage").textContent="Withdrawal error: "+err.message;}
 $("bankSubmit").disabled=false;
 });
@@ -612,8 +599,7 @@ $("profileName").textContent=currentUser.user_metadata?.full_name||"-";
 $("profilePhone").textContent=currentUser.user_metadata?.phone||"-";
 $("profileCredit").textContent="-";
 try{
-const {data,error}=await db.from("profiles").select("*")
-.eq("id",currentUser.id).maybeSingle();
+const {data,error}=await db.from("profiles").select("*").eq("id",currentUser.id).maybeSingle();
 if(error)throw error;
 if(data){
 $("profileName").textContent=data.full_name||currentUser.user_metadata?.full_name||"-";
@@ -627,9 +613,8 @@ $("profileCredit").textContent=safeText(data.credit_score);
 async function loadKyc(user){
 if(!user)return;
 try{
-const {data,error}=await db.from("kyc_submissions")
-.select("status,created_at").eq("customer_id",user.id)
-.order("created_at",{ascending:false}).limit(1);
+const {data,error}=await db.from("kyc_submissions").select("status,created_at")
+.eq("customer_id",user.id).order("created_at",{ascending:false}).limit(1);
 if(error)throw error;
 if(data&&data.length&&String(data[0].status).trim().toLowerCase()==="approved"){
 $("verificationStatus").textContent="Verified";
@@ -663,10 +648,7 @@ const path=currentUser.id+"/"+Date.now()+"_"+safeName;
 const {error:uploadError}=await db.storage.from("kyc-documents").upload(path,file);
 if(uploadError)throw uploadError;
 const {error}=await db.from("kyc_submissions").insert({
-customer_id:currentUser.id,
-document_type:type,
-document_url:path,
-status:"Pending"
+customer_id:currentUser.id,document_type:type,document_url:path,status:"Pending"
 });
 if(error)throw error;
 $("kycForm").reset();
@@ -698,7 +680,8 @@ const admin=document.createElement("strong");admin.textContent="Customer Service
 const replyText=document.createElement("p");replyText.textContent=m.reply;
 reply.append(admin,replyText);box.appendChild(reply);
 }else{
-const waiting=document.createElement("p");waiting.className="small";waiting.textContent="Waiting for Customer Service reply.";
+const waiting=document.createElement("p");waiting.className="small";
+waiting.textContent="Waiting for Customer Service reply.";
 box.appendChild(waiting);
 }
 });
@@ -713,9 +696,7 @@ $("supportButton").disabled=true;
 $("supportMessage").textContent="Sending message...";
 try{
 const {error}=await db.from("support_messages").insert({
-customer_id:currentUser.id,
-message:message,
-status:"Open"
+customer_id:currentUser.id,message:message,status:"Open"
 });
 if(error)throw error;
 $("supportInput").value="";
