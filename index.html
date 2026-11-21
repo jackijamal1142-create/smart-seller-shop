@@ -109,6 +109,8 @@ button,input,select,textarea{font-size:14px}
 #shopList .product-price,#myProductsList .product-price{font-size:16px;margin:7px 0}
 #shopList .product-card button{font-size:11px;padding:9px 5px;line-height:1.25}
 
+
+.withdraw-history-wrap{margin-top:14px;border-top:1px solid #e6edf5;padding-top:12px}.withdraw-history-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px}.withdraw-history-head button{border:0;background:#edf3fb;border-radius:7px;padding:5px 9px;font-size:11px;color:#263b59}.withdraw-history-row{display:flex;align-items:center;gap:8px;min-width:0;padding:8px 2px;border-bottom:1px solid #edf1f6;font-size:11px;line-height:1.2;white-space:nowrap;overflow:hidden}.withdraw-history-row>span:first-child{color:#718096;flex:0 0 62px}.withdraw-history-row>span:nth-child(2){flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}.withdraw-history-row>strong{flex:0 0 auto;font-size:11px}.withdraw-status{flex:0 0 auto;text-transform:capitalize;font-weight:700}.withdraw-status.pending{color:#b7791f}.withdraw-status.approved{color:#16804a}.withdraw-status.rejected{color:#c0392b}.withdraw-note{display:none}
 </style>
 </head>
 <body>
@@ -243,8 +245,8 @@ button,input,select,textarea{font-size:14px}
     <button type="button" class="full gray" onclick="backToMethods()">Back</button>
    </form>
    <p id="withdrawMessage" class="message"></p>
+   <div class="withdraw-history-wrap"><div class="withdraw-history-head"><strong>Withdrawal History</strong><button type="button" onclick="loadWithdrawals()">Refresh</button></div><div id="withdrawalHistory">Loading...</div></div>
   </div>
-  <div class="card"><h3>Withdrawal History</h3><div id="withdrawalHistory">Loading...</div><button class="full gray" onclick="loadWithdrawals()">Refresh History</button></div>
  </section>
 
  <section id="supportPage" class="page hidden chat-screen">
@@ -768,14 +770,16 @@ window.loadWithdrawals=async function(){
   if(!data?.length){box.textContent="No withdrawal requests yet.";return}
   box.innerHTML="";
   data.forEach(w=>{
-   const card=document.createElement("div");card.className="data-card";
-   const method=document.createElement("strong");method.textContent=w.method||"Withdrawal";
-   const amount=document.createElement("p");amount.textContent="Amount: "+money(w.amount);
+   const row=document.createElement("div");row.className="withdraw-history-row";
+   const date=document.createElement("span");date.textContent=w.created_at?new Date(w.created_at).toLocaleDateString():"-";
+   const method=document.createElement("span");method.textContent=w.method||"Withdrawal";
+   const amount=document.createElement("strong");amount.textContent=money(w.amount);
    const normalized=String(w.status||"Pending").toLowerCase();
-   const shown=["approved","complete","completed"].includes(normalized)?"WITHDRAW COMPLETE":normalized==="rejected"?"REJECTED - REFUNDED":String(w.status||"Pending").toUpperCase();
-   const status=document.createElement("p");status.textContent="Status: "+shown;
-   const note=document.createElement("p");note.className="small";note.textContent=w.admin_note?"Admin note: "+w.admin_note:"";
-   card.append(method,amount,status,note);box.appendChild(card);
+   const shown=["approved","complete","completed"].includes(normalized)?"Complete":normalized==="rejected"?"Rejected":String(w.status||"Pending");
+   const status=document.createElement("span");status.className="withdraw-status "+(normalized==="rejected"?"rejected":(["approved","complete","completed"].includes(normalized)?"approved":"pending"));status.textContent=shown;
+   row.append(date,method,amount,status);
+   if(w.admin_note){const note=document.createElement("span");note.className="withdraw-note";note.textContent=w.admin_note;note.title=w.admin_note;row.append(note);}
+   box.appendChild(row);
   });
  }catch(err){box.textContent="Withdrawal history error: "+err.message}
 };
