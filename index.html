@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Smart Seller</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial,sans-serif;background:#f1f5fb;color:#17243b}
@@ -29,9 +30,15 @@ button:disabled{opacity:.6;cursor:wait}
 .logout{background:#65758b}
 .linkButton{background:none;color:#1769d2;text-decoration:underline;padding:5px;margin:4px 0}
 hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
+.product-card{border:1px solid #ddd;padding:15px;margin:12px 0;border-radius:10px;background:white}
+.product-card h3{margin-top:5px}
+.product-card img{width:100%;max-height:180px;object-fit:contain}
+.product-price{font-size:18px;font-weight:bold;color:#1769d2}
 </style>
 </head>
+
 <body>
+
 <header>
 <h1>Smart Seller</h1>
 <p>Welcome to Smart Seller</p>
@@ -41,6 +48,7 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 <div class="card">
 
 <div id="authArea">
+
 <div class="tabs">
 <button id="loginTab" class="active" onclick="showLogin()">Login</button>
 <button id="registerTab" onclick="showRegister()">Register</button>
@@ -81,49 +89,76 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 <input id="confirmNewPassword" type="password" placeholder="Confirm New Password" minlength="8" required>
 <button id="updatePasswordButton" type="submit">Update Password</button>
 </form>
+
 </div>
 
 <div id="dashboard" class="hidden">
+
 <h2>Customer Dashboard</h2>
 <p id="welcome"></p>
+
 <hr>
+
 <h3>Available Products</h3>
+
 <div id="productsList">
-  <p class="note">Loading products...</p>
+<p class="note">Loading products...</p>
 </div>
-<div class="status">Verification pending</div>
+
+<button type="button" onclick="loadProducts()">Refresh Products</button>
+
+<div class="status" id="verificationStatus">Verification pending</div>
 <p class="note">Please complete your KYC verification.</p>
+
 <hr>
+
 <h3>Complete KYC</h3>
+
 <form id="kycForm">
+
 <label class="small">Select document type</label>
+
 <select id="documentType" required>
 <option value="">Select Document</option>
 <option value="Passport">Passport</option>
 <option value="National ID">National ID</option>
 <option value="Driving Licence">Driving Licence</option>
 </select>
+
 <label class="small">Upload document photo</label>
+
 <input id="kycFile" type="file" accept="image/*,.pdf" required>
+
 <button id="kycButton" type="submit">Submit KYC</button>
+
 </form>
+
 <p id="kycStatus" class="message"></p>
+
 <hr>
+
 <button class="logout" onclick="logout()">Logout</button>
+
 </div>
 
 <p id="message" class="message"></p>
+
 </div>
 </main>
 
 <script>
+
 const SUPABASE_URL = "https://biiagnjcyzvqbezabpxz.supabase.co";
+
 const SUPABASE_KEY = "sb_publishable_QrBZWYfua111aN24MjlXHw_c-Cf5yB1";
 
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const db = window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 const $ = id => document.getElementById(id);
-function msg(text){$("message").textContent=text;}
+
+function msg(text){
+ $("message").textContent=text;
+}
 
 function hideAllForms(){
  ["loginForm","registerForm","forgotForm","newPasswordForm"].forEach(id=>{
@@ -164,68 +199,123 @@ function showNewPassword(){
  msg("Enter your new password.");
 }
 
+
+// REGISTER
+
 $("registerForm").addEventListener("submit",async e=>{
  e.preventDefault();
+
  const name=$("fullName").value.trim();
  const email=$("registerEmail").value.trim();
  const phone=$("registerPhone").value.trim();
  const password=$("registerPassword").value;
  const confirm=$("confirmPassword").value;
- if(password!==confirm){msg("Passwords do not match.");return;}
+
+ if(password!==confirm){
+  msg("Passwords do not match.");
+  return;
+ }
+
  $("registerButton").disabled=true;
  msg("Creating account...");
+
  try{
+
   const {data,error}=await db.auth.signUp({
-   email,password,
-   options:{data:{full_name:name,phone:phone}}
+   email,
+   password,
+   options:{
+    data:{
+     full_name:name,
+     phone:phone
+    }
+   }
   });
-  if(error) throw error;
+
+  if(error)throw error;
+
   if(data.session){
    msg("Account created successfully!");
    await loadDashboard(data.session.user);
   }else{
-   msg("Account created. Please verify your email using the link sent to your inbox, then login.");
    showLogin();
+   msg("Account created. Please verify your email, then login.");
   }
- }catch(err){msg(err.message);}
- finally{$("registerButton").disabled=false;}
+
+ }catch(err){
+  msg(err.message);
+ }
+ finally{
+  $("registerButton").disabled=false;
+ }
 });
+
+
+// LOGIN
 
 $("loginForm").addEventListener("submit",async e=>{
  e.preventDefault();
+
  const email=$("loginIdentity").value.trim();
  const password=$("loginPassword").value;
+
  $("loginButton").disabled=true;
  msg("Logging in...");
+
  try{
+
   const {data,error}=await db.auth.signInWithPassword({
-   email,password
+   email,
+   password
   });
-  if(error) throw error;
+
+  if(error)throw error;
+
   await loadDashboard(data.user);
- }catch(err){msg(err.message);}
- finally{$("loginButton").disabled=false;}
+
+ }catch(err){
+  msg(err.message);
+ }
+ finally{
+  $("loginButton").disabled=false;
+ }
 });
+
+
+// FORGOT PASSWORD
 
 $("forgotForm").addEventListener("submit",async e=>{
  e.preventDefault();
+
  const email=$("resetEmail").value.trim();
+
  $("resetButton").disabled=true;
  msg("Sending reset link...");
+
  try{
+
   const {error}=await db.auth.resetPasswordForEmail(email,{
    redirectTo:"https://jackijamal1142-create.github.io/smart-seller-shop/"
   });
+
   if(error)throw error;
-  msg("Password reset link sent. Please check your email inbox and spam folder.");
+
+  msg("Password reset link sent. Check your email.");
+
  }catch(err){
   msg("Reset error: "+err.message);
  }
- finally{$("resetButton").disabled=false;}
+ finally{
+  $("resetButton").disabled=false;
+ }
 });
+
+
+// UPDATE PASSWORD
 
 $("newPasswordForm").addEventListener("submit",async e=>{
  e.preventDefault();
+
  const password=$("newPassword").value;
  const confirm=$("confirmNewPassword").value;
 
@@ -233,6 +323,7 @@ $("newPasswordForm").addEventListener("submit",async e=>{
   msg("Password must be at least 8 characters.");
   return;
  }
+
  if(password!==confirm){
   msg("Passwords do not match.");
   return;
@@ -242,155 +333,270 @@ $("newPasswordForm").addEventListener("submit",async e=>{
  msg("Updating password...");
 
  try{
+
   const {error}=await db.auth.updateUser({password});
+
   if(error)throw error;
 
   await db.auth.signOut();
+
   $("newPasswordForm").reset();
+
   showLogin();
-  msg("Password updated successfully. Please login with your new password.");
+
+  msg("Password updated successfully. Please login.");
+
  }catch(err){
   msg("Password update error: "+err.message);
  }
- finally{$("updatePasswordButton").disabled=false;}
+ finally{
+  $("updatePasswordButton").disabled=false;
+ }
 });
-async function loadProducts(){
- const box = $("productsList");
- box.innerHTML = "<p>Loading products...</p>";
 
- try {
-  const {data,error} = await db
+
+// LOAD PRODUCTS
+
+async function loadProducts(){
+
+ const box=$("productsList");
+
+ box.innerHTML='<p class="note">Loading products...</p>';
+
+ try{
+
+  const {data,error}=await db
    .from("products")
    .select("id,name,description,price,category,image")
    .eq("is_active",true)
    .order("id",{ascending:false});
 
-  if(error) throw error;
+  console.log("PRODUCT DATA:",data);
+  console.log("PRODUCT ERROR:",error);
 
-  if(!data || data.length===0){
-   box.innerHTML="<p>No products available.</p>";
+  if(error)throw error;
+
+  if(!data||data.length===0){
+   box.innerHTML='<p class="note">No products available right now.</p>';
    return;
   }
 
   box.innerHTML="";
 
   data.forEach(product=>{
+
    const item=document.createElement("div");
-   item.style.cssText="border:1px solid #ddd;padding:15px;margin:12px 0;border-radius:10px;background:#fff";
+   item.className="product-card";
 
    const title=document.createElement("h3");
    title.textContent=product.name;
 
    const description=document.createElement("p");
-   description.textContent=product.description || "";
+   description.textContent=product.description||product.category||"";
 
    const price=document.createElement("p");
+   price.className="product-price";
    price.textContent="Price: $"+Number(product.price).toFixed(2);
 
-   item.append(title,description,price);
-
    if(product.image){
+
     const img=document.createElement("img");
     img.src=product.image;
     img.alt=product.name;
-    img.style.cssText="width:100%;max-height:180px;object-fit:contain";
+    img.onerror=()=>img.style.display="none";
+
     item.appendChild(img);
    }
 
+   item.appendChild(title);
+   item.appendChild(description);
+   item.appendChild(price);
+
    box.appendChild(item);
+
   });
 
  }catch(error){
+
+  console.error("Products loading failed:",error);
+
   box.textContent="Products error: "+error.message;
+
  }
-}
-async function loadDashboard(""){
-await loadProducts();
- $("authArea").classList.add("hidden");
- $("dashboard").classList.remove("hidden");
- $("welcome").textContent="Welcome, "+(user.user_metadata.full_name||user.email);
- msg("");
- await loadKyc(user);
+
 }
 
+
+// LOAD CUSTOMER DASHBOARD
+
+async function loadDashboard(user){
+
+ $("authArea").classList.add("hidden");
+
+ $("dashboard").classList.remove("hidden");
+
+ $("welcome").textContent=
+  "Welcome, "+(user.user_metadata.full_name||user.email);
+
+ msg("");
+
+ await loadProducts();
+
+ await loadKyc(user);
+
+}
+
+
+// LOAD KYC
+
 async function loadKyc(user){
- const {data,error}=await db.from("kyc_submissions")
+
+ const {data,error}=await db
+  .from("kyc_submissions")
   .select("document_type,status,admin_note,created_at")
   .eq("customer_id",user.id)
   .order("created_at",{ascending:false})
   .limit(1);
- if(error){$("kycStatus").textContent="KYC status could not be loaded.";return;}
- if(data && data.length){
+
+ if(error){
+  $("kycStatus").textContent="KYC status could not be loaded.";
+  return;
+ }
+
+ if(data&&data.length){
+
   const item=data[0];
+
   $("kycStatus").textContent=
    "Your KYC: "+item.status+
-   (item.admin_note ? " — Admin note: "+item.admin_note : "");
+   (item.admin_note?" — Admin note: "+item.admin_note:"");
+
+  $("verificationStatus").textContent=
+   "Verification: "+item.status;
+
  }else{
+
   $("kycStatus").textContent="No KYC submitted yet.";
+
+  $("verificationStatus").textContent="Verification pending";
+
  }
+
 }
+
+
+// KYC SUBMISSION
 
 $("kycForm").addEventListener("submit",async e=>{
  e.preventDefault();
+
  const {data:{user}}=await db.auth.getUser();
- if(!user){msg("Please login again.");return;}
+
+ if(!user){
+  msg("Please login again.");
+  return;
+ }
+
  const file=$("kycFile").files[0];
  const type=$("documentType").value;
+
  if(!file||!type)return;
+
  if(file.size>5*1024*1024){
   $("kycStatus").textContent="File must be smaller than 5 MB.";
   return;
  }
+
  $("kycButton").disabled=true;
  $("kycStatus").textContent="Uploading document...";
+
  try{
+
   const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
+
   const path=user.id+"/"+Date.now()+"_"+safeName;
+
   const {error:uploadError}=await db.storage
-   .from("kyc-documents").upload(path,file);
+   .from("kyc-documents")
+   .upload(path,file);
+
   if(uploadError)throw uploadError;
 
-  const {error:insertError}=await db.from("kyc_submissions").insert({
-   customer_id:user.id,
-   document_type:type,
-   document_url:path,
-   status:"Pending"
-  });
+  const {error:insertError}=await db
+   .from("kyc_submissions")
+   .insert({
+    customer_id:user.id,
+    document_type:type,
+    document_url:path,
+    status:"Pending"
+   });
+
   if(insertError)throw insertError;
 
   $("kycStatus").textContent="KYC submitted successfully. Status: Pending.";
+
+  $("verificationStatus").textContent="Verification pending";
+
   $("kycForm").reset();
+
  }catch(err){
+
   $("kycStatus").textContent="KYC error: "+err.message;
+
  }
- finally{$("kycButton").disabled=false;}
+ finally{
+  $("kycButton").disabled=false;
+ }
 });
 
+
+// LOGOUT
+
 async function logout(){
+
  await db.auth.signOut();
+
  $("dashboard").classList.add("hidden");
+
  $("authArea").classList.remove("hidden");
+
  $("kycStatus").textContent="";
+
  $("loginForm").reset();
+
  showLogin();
 }
 
+
+// PASSWORD RECOVERY
+
 db.auth.onAuthStateChange((event,session)=>{
+
  if(event==="PASSWORD_RECOVERY"){
   showNewPassword();
  }
+
 });
 
+
+// CHECK EXISTING SESSION
+
 (async()=>{
+
  const {data,error}=await db.auth.getSession();
+
  if(error){
   msg("Session error: "+error.message);
   return;
  }
+
  if(data.session){
   await loadDashboard(data.session.user);
  }
+
 })();
+
 </script>
+
 </body>
 </html>
