@@ -858,14 +858,15 @@ async function loadProfile(){
   if(error)throw error;
   if(data){
    const score=Number(data.credit_score||0);
+    const scorePercent=Math.max(0,Math.min(100,Math.round(score/10)));
    $("profileName").textContent=data.full_name||currentUser.user_metadata?.full_name||"-";
    $("editFullName").value=data.full_name||currentUser.user_metadata?.full_name||"";
    $("editPhone").value=data.phone||currentUser.user_metadata?.phone||"";
    avatarUrl=data.avatar||"";
    $("profileCredit").textContent=safeText(data.credit_score);
-   $("homeCredit").textContent=score+" / 1000";
-   $("scoreDisplay").textContent=score;
-   $("scoreFill").style.width=Math.max(0,Math.min(100,score/10))+"%";
+   $("homeCredit").textContent=scorePercent+"%";
+   $("scoreDisplay").textContent=scorePercent+"%";
+   $("scoreFill").style.width=scorePercent+"%";
   }
  }catch(err){console.error("Profile load:",err.message)}
  const fallback="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100%" height="100%" fill="#dbeafe"/><text x="50%" y="57%" text-anchor="middle" font-size="48">👤</text></svg>');
