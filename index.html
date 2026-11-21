@@ -944,30 +944,31 @@ async function loadKyc(user){
   if(error)throw error;
 
   const records=data||[];
-  const normalizeStatus=value=>String(value||"").trim().toLowerCase().replace(/[ _-]+/g," ");
-  const approved=records.find(row=>/approv|verif/.test(normalizeStatus(row.status)));
-  const pending=records.find(row=>["pending","processing","under review"].includes(normalizeStatus(row.status)));
+  const normalizeStatus=value=>String(value||"").trim().toLowerCase().replace(/[^a-z]/g,"");
+  const approved=records.find(row=>{
+   const s=normalizeStatus(row.status);
+   return s.includes("approv")||s.includes("aproved")||s.includes("aproov")||s.includes("verif");
+  });
+  const pending=records.find(row=>["pending","processing","underreview"].includes(normalizeStatus(row.status)));
   const rejected=records.find(row=>normalizeStatus(row.status)==="rejected");
 
   isKycApproved=!!approved;
   isKycPending=!isKycApproved&&!!pending;
 
+  const statusEl=$("verificationStatus"),section=$("kycSection"),messageEl=$("kycStatus");
   if(isKycApproved){
-   $("verificationStatus").textContent="✓ KYC VERIFIED";
-   $("verificationStatus").className="status";
-   $("kycSection").classList.add("hidden");
-   $("kycLockBanner").classList.add("hidden");
-   $("kycStatus").textContent="Your identity is verified. KYC resubmission is disabled.";
+   if(statusEl){statusEl.textContent="✓ KYC VERIFIED";statusEl.className="status";}
+   if(section)section.classList.add("hidden");
+   if($("kycLockBanner"))$("kycLockBanner").classList.add("hidden");
+   if(messageEl)messageEl.textContent="Your identity is verified. KYC resubmission is disabled.";
   }else if(isKycPending){
-   $("verificationStatus").textContent="KYC PENDING APPROVAL";
-   $("verificationStatus").className="status pending";
-   $("kycSection").classList.add("hidden");
-   $("kycStatus").textContent="Your KYC is already submitted. Please wait for admin approval. You do not need to submit it again.";
+   if(statusEl){statusEl.textContent="KYC PENDING APPROVAL";statusEl.className="status pending";}
+   if(section)section.classList.add("hidden");
+   if(messageEl)messageEl.textContent="Your KYC is already submitted. Please wait for admin approval. You do not need to submit it again.";
   }else{
-   $("verificationStatus").textContent=rejected?"KYC REJECTED":"KYC NOT SUBMITTED";
-   $("verificationStatus").className="status "+(rejected?"rejected":"pending");
-   $("kycSection").classList.remove("hidden");
-   $("kycStatus").textContent=rejected?"Your KYC was rejected. Please submit a new document.":"Please submit your identity document.";
+   if(statusEl){statusEl.textContent=rejected?"KYC REJECTED":"KYC NOT SUBMITTED";statusEl.className="status "+(rejected?"rejected":"pending");}
+   if(section)section.classList.remove("hidden");
+   if(messageEl)messageEl.textContent=rejected?"Your KYC was rejected. Please submit a new document.":"Please submit your identity document.";
   }
   updateKycLocks();
  }catch(err){
