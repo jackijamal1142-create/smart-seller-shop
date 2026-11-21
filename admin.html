@@ -803,8 +803,8 @@ async function walletHistory(){
   let applied=0;
 
   data.forEach(x=>{
-   const type=String(x.transaction_type||"").toLowerCase();
-   const status=String(x.status||"").toLowerCase();
+   const type=String(x.transaction_type||"").toLowerCase().trim();
+   const status=String(x.status||"").toLowerCase().trim();
    const amount=Number(x.amount||0);
 
    if(!["approved","completed","success","successful","paid"].includes(status))return;
@@ -829,7 +829,7 @@ async function walletHistory(){
   ];
 
   orders.forEach(o=>{
-   const status=String(o.status||"").toLowerCase();
+   const status=String(o.status||"").toLowerCase().trim();
    if(!activeStatuses.includes(status))return;
 
    const amount=Number(o.total_amount??o.product_price??0);
