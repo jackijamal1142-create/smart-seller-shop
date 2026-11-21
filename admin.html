@@ -19,7 +19,7 @@ label{font-size:13px;font-weight:bold}
 #layout{display:none;min-height:calc(100vh - 60px)}
 aside{width:245px;background:#17243b;padding:12px;flex-shrink:0}
 aside button{display:block;width:100%;text-align:left;background:transparent;color:#e2e9f5;padding:12px}
-aside button.active,aside button:hover{background:#34445f;color:#7ee6d2}
+aside button.active,aside button:hover{background:#34445f;color:#7ee6d2}.admin-nav-count{float:right;background:#e5485d;color:white;border-radius:12px;padding:2px 7px;font-size:10px;min-width:18px;text-align:center}
 main{padding:20px;flex:1;min-width:0}
 .panel,.stat{background:white;padding:16px;border-radius:11px;margin-bottom:14px;box-shadow:0 2px 9px #17243b0c}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
@@ -84,12 +84,12 @@ main{padding:12px}
 <button onclick="go('dashboard',this)" class="active">▦ Dashboard</button>
 <button onclick="go('products',this)">▣ Products</button>
 <button onclick="go('customer_products',this)">▤ Customer Products</button>
-<button onclick="go('orders',this)">🛒 Orders</button>
+<button onclick="go('orders',this)">🛒 Orders <small id="adminOrdersBadge" class="admin-nav-count"></small></button>
 <button onclick="go('wallet_transactions',this)">▣ Wallet</button>
 <button onclick="go('withdrawals',this)">⇧ Withdrawals</button>
 <button onclick="go('kyc_submissions',this)">✓ KYC</button>
 <button onclick="go('customers',this)">♙ Customer Accounts</button>
-<button onclick="go('support_messages',this)">✉ Customer Service</button>
+<button onclick="go('support_messages',this)">✉ Customer Service <small id="adminMessagesBadge" class="admin-nav-count"></small></button>
 <button onclick="go('notifications',this)">♧ Notifications</button>
 <button onclick="go('credit_score_history',this)">◷ Credit Score History</button>
 </aside>
@@ -170,10 +170,28 @@ async function login(){
  finally{b.disabled=false}
 }
 async function logout(){if(db)await db.auth.signOut();location.reload()}
+async function refreshAdminBadges(){
+ if(!db)return;
+ try{
+  const results=await Promise.all([
+   db.from("orders").select("id,status"),
+   db.from("support_chat_messages").select("customer_id,sender,sender_role,created_at").order("created_at",{ascending:false}).limit(1000)
+  ]);
+  if(results[0].error)throw results[0].error;if(results[1].error)throw results[1].error;
+  const pending=(results[0].data||[]).filter(o=>["pending","pickup","picked_up","picked up"].includes(String(o.status||"").toLowerCase())).length;
+  const latest=new Map();(results[1].data||[]).forEach(m=>{const id=String(m.customer_id);if(!latest.has(id))latest.set(id,m)});
+  const waiting=[...latest.values()].filter(m=>String(m.sender_role||m.sender||"").toLowerCase()!=="admin").length;
+  const ob=document.getElementById("adminOrdersBadge"),mb=document.getElementById("adminMessagesBadge");
+  if(ob)ob.textContent=pending||"";if(mb)mb.textContent=waiting||"";
+ }catch(e){console.warn("Admin notification counts:",e.message)}
+}
+
 async function start(){
  document.getElementById("login").style.display="none";
  document.getElementById("layout").style.display="flex";
  await go("dashboard",document.querySelector("aside button"));
+ await refreshAdminBadges();
+ if(!window.adminBadgeTimer)window.adminBadgeTimer=setInterval(refreshAdminBadges,15000);
 }
 async function check(){
  if(!db)return;
