@@ -498,7 +498,7 @@ async function loadOrders(){
  "<div class='tablewrap'><table><tr><th>Customer</th><th>Order ID</th><th>Total</th><th>Status</th><th>Update</th></tr>"+
  rows.map(x=>`
  <tr><td>${esc(customerName(x.customer_id))}<br>${esc(customerEmail(x.customer_id))}</td>
- <td>${esc(x.id)}</td><td>${esc(x.total_amount)}</td><td>${esc(x.status)}</td>
+ <td>${esc(x.id)}</td><td>${esc(x.total_amount)}</td><td><b>${esc(x.status)}</b></td>
  <td>
  <select id="orderstatus_${esc(x.id)}">
  ${["pending","paid","completed","cancelled"].map(s=>
@@ -508,12 +508,41 @@ async function loadOrders(){
  </td></tr>`).join("")+"</table></div>":"No orders found.";
 }
 
+/* UPDATED ORDER SAVE FUNCTION */
+
 async function updateOrder(id){
- const status=val("orderstatus_"+id);
- const r=await db.from("orders").update({status}).eq("id",id);
- if(r.error)return note(r.error.message,true);
- note("Order status updated.");
- await loadOrders();
+ const select=document.getElementById("orderstatus_"+id);
+ if(!select)return note("Order status select nahi mila.",true);
+
+ const status=select.value;
+ const allowed=["pending","paid","completed","cancelled"];
+
+ if(!allowed.includes(status))
+  return note("Invalid order status.",true);
+
+ select.disabled=true;
+
+ try{
+  const r=await db.from("orders")
+   .update({status:status})
+   .eq("id",id)
+   .select("id,status")
+   .single();
+
+  if(r.error)throw r.error;
+
+  if(!r.data||r.data.status!==status)
+   throw new Error("Database ne updated status confirm nahi kiya.");
+
+  note("Order successfully "+status+" ho gaya.");
+  await loadOrders();
+
+ }catch(e){
+  note("Order save error: "+e.message,true);
+ }finally{
+  const updatedSelect=document.getElementById("orderstatus_"+id);
+  if(updatedSelect)updatedSelect.disabled=false;
+ }
 }
 
 /* WALLET */
@@ -768,7 +797,6 @@ async function saveCreditScore(){
  }).eq("id",cid);
  if(update.error)return note(update.error.message,true);
 
- /* History table column names must match this insert. */
  const history=await db.from("credit_score_history").insert({
   customer_id:cid,
   old_score:oldScore,
