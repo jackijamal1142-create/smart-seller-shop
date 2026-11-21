@@ -417,7 +417,37 @@ async function loadDashboard(user) {
     msg("");
 
     await loadProducts();
-    await loadKyc(user);
+    await 
+async function loadKyc(user) {
+    try {
+        const {data,error} = await db
+            .from("kyc_submissions")
+            .select("status")
+            .eq("customer_id", user.id)
+            .order("created_at", {ascending:false})
+            .limit(1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0 &&
+            data[0].status.toLowerCase() === "approved") {
+
+            $("verificationStatus").textContent = "Verified";
+            $("kycForm").classList.add("hidden");
+            $("kycStatus").textContent = "";
+
+        } else {
+            $("verificationStatus").textContent = "Verification pending";
+            $("kycForm").classList.remove("hidden");
+            $("kycStatus").textContent = "";
+        }
+
+    } catch(error) {
+        console.error("KYC error:", error);
+        $("verificationStatus").textContent = "Verification status unavailable";
+    }
+}
+
 }
 
 // LOAD KYC STATUS
