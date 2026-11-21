@@ -1,4 +1,4 @@
-```html
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -38,6 +38,9 @@ img.product{width:65px;height:65px;object-fit:cover;border-radius:7px}
 #toggle{display:none}
 .preview{width:100px;height:100px;object-fit:cover;border-radius:8px;display:none;margin:8px 0}
 pre{white-space:pre-wrap;overflow-wrap:anywhere}
+.order-calculation{background:#f4f6fb;padding:12px;border-radius:8px;margin:12px 0}
+.order-calculation p{display:flex;justify-content:space-between;gap:12px}
+.order-calculation strong{color:#6256cf}
 @media(max-width:760px){
 #layout{flex-direction:column}
 aside{width:100%;display:none}
@@ -94,6 +97,7 @@ const IMAGE_BUCKET="product-images";
 
 let db=null,customers=[],products=[],records=[],current="dashboard";
 let selectedCustomer=null;
+let profitEdited=false;
 
 try{
  if(!window.supabase)throw new Error("Supabase library load nahi hui.");
@@ -412,62 +416,114 @@ function showCustomerProducts(id){
  <div class="panel"><h3>Customer Products</h3>${renderSimple(items)}</div>`;
 }
 
-/* ORDERS */
+/* ORDERS - UPDATED CALCULATION */
 
 async function ordersPage(){
  await Promise.all([loadCustomers(),loadProducts()]);
+ profitEdited=false;
+
  document.getElementById("content").innerHTML=`
  <h2>Orders</h2>
  <div class="panel">
  <h3>Send Order to Customer</h3>
+
  <label>Customer</label>
  <select id="ocustomer">
  <option value="">Select customer</option>
  ${customers.map(c=>`<option value="${esc(c.id)}">${esc(c.full_name||c.email||c.id)} — ${esc(c.email||"")}</option>`).join("")}
  </select>
+
  <label>Product</label>
- <select id="oproduct" onchange="calcOrder()">
+ <select id="oproduct" onchange="calcOrder(true)">
  <option value="">Select product</option>
- ${products.map(p=>`<option value="${esc(p.id)}">${esc(p.name)} — ${esc(p.price)}</option>`).join("")}
+ ${products.map(p=>`<option value="${esc(p.id)}">${esc(p.name)} — $${money(p.price)}</option>`).join("")}
  </select>
+
  <label>Quantity</label>
  <input id="oqty" type="number" min="1" value="1" oninput="calcOrder()">
- <label>Admin Profit</label>
- <input id="oprofit" type="number" min="0" value="0" step="0.01">
- <p id="ototal">Total: 0.00</p>
+
+ <label>Admin Profit (20% automatic - manually editable)</label>
+ <input id="oprofit" type="number" min="0" step="0.01"
+ value="0" oninput="profitEdited=true;calcOrder()">
+
+ <div class="order-calculation">
+ <p>Product Price <strong id="productPrice">$0.00</strong></p>
+ <p>Profit <strong id="profitDisplay">$0.00</strong></p>
+ <p>Expected Return <strong id="expectedReturn">$0.00</strong></p>
+ </div>
+
+ <p class="muted">Profit automatically 20% calculate hoga. Admin zaroorat par manually change kar sakta hai.</p>
+
  <button class="green" id="sendOrderButton" onclick="sendOrder()">SEND ORDER</button>
  </div>
- <div class="panel"><h3>Orders List</h3>
+
+ <div class="panel">
+ <h3>Orders List</h3>
  <button class="gray" onclick="loadOrders()">Refresh</button>
- <div id="orderList"></div></div>`;
+ <div id="orderList"></div>
+ </div>`;
+
+ calcOrder(true);
  await loadOrders();
 }
 
-function calcOrder(){
+/* LIVE PRODUCT PRICE, PROFIT AND EXPECTED RETURN */
+
+function calcOrder(resetProfit=false){
  const p=products.find(x=>String(x.id)===val("oproduct"));
- document.getElementById("ototal").textContent=
- "Total: "+money(Number(p?.price||0)*Number(val("oqty")||1));
+ const qty=Number(val("oqty"));
+
+ const validQty=Number.isInteger(qty)&&qty>0?qty:0;
+ const unitPrice=Number(p?.price||0);
+ const productPrice=unitPrice*validQty;
+
+ const profitInput=document.getElementById("oprofit");
+
+ if(resetProfit||!profitEdited){
+  profitInput.value=money(productPrice*0.20);
+ }
+
+ const profit=Number(profitInput.value||0);
+ const expectedReturn=productPrice+profit;
+
+ document.getElementById("productPrice").textContent="$"+money(productPrice);
+ document.getElementById("profitDisplay").textContent="$"+money(profit);
+ document.getElementById("expectedReturn").textContent="$"+money(expectedReturn);
 }
 
+/* SAVE NEW ORDER */
+
 async function sendOrder(){
- const cid=val("ocustomer"),pid=val("oproduct");
+ const cid=val("ocustomer");
+ const pid=val("oproduct");
  const qty=Number(val("oqty"));
  const p=products.find(x=>String(x.id)===pid);
+
  if(!cid||!p||!Number.isInteger(qty)||qty<1)
   return note("Customer, product aur quantity select karein.",true);
 
- const total=Number(p.price)*qty;
- const profit=Number(val("oprofit")||0);
+ const unitPrice=Number(p.price);
+ if(!Number.isFinite(unitPrice)||unitPrice<0)
+  return note("Product ki price valid nahi hai.",true);
+
+ const total=unitPrice*qty;
+ const profit=Number(val("oprofit"));
+ const expectedReturn=total+profit;
+
  if(!Number.isFinite(profit)||profit<0)
   return note("Profit amount check karein.",true);
 
  const b=document.getElementById("sendOrderButton");
  b.disabled=true;
+
  try{
   const o=await db.from("orders").insert({
-   customer_id:cid,status:"pending",
-   total_amount:total,admin_profit:profit
+   customer_id:cid,
+   status:"pending",
+   total_amount:total,
+   admin_profit:profit
   }).select("id").single();
+
   if(o.error)throw o.error;
 
   const it=await db.from("order_items").insert({
@@ -475,40 +531,117 @@ async function sendOrder(){
    product_id:p.id,
    product_name:p.name,
    quantity:qty,
-   unit_price:Number(p.price)
+   unit_price:unitPrice
   });
+
   if(it.error){
    await db.from("orders").delete().eq("id",o.data.id);
    throw it.error;
   }
-  note("Order successfully customer ko send ho gaya.");
+
+  note(
+   "Order sent successfully. Product Price: $"+money(total)+
+   " | Profit: $"+money(profit)+
+   " | Expected Return: $"+money(expectedReturn)
+  );
+
+  document.getElementById("oproduct").value="";
+  document.getElementById("oqty").value="1";
+  profitEdited=false;
+  calcOrder(true);
+
   await loadOrders();
- }catch(e){note(e.message,true);}
- finally{b.disabled=false;}
+
+ }catch(e){
+  note("Order save error: "+e.message,true);
+ }finally{
+  b.disabled=false;
+ }
 }
+
+/* LOAD ORDERS AND THEIR ITEMS */
 
 async function loadOrders(){
  const r=await db.from("orders").select("*")
   .order("created_at",{ascending:false}).limit(300);
+
  if(r.error)return note(r.error.message,true);
+
  await loadCustomers();
 
  const rows=r.data||[];
+ let items=[];
+
+ if(rows.length){
+  const ids=rows.map(x=>x.id);
+  const ir=await db.from("order_items").select("*").in("order_id",ids);
+
+  if(ir.error)return note("Order items load error: "+ir.error.message,true);
+  items=ir.data||[];
+ }
+
  document.getElementById("orderList").innerHTML=rows.length?
- "<div class='tablewrap'><table><tr><th>Customer</th><th>Order ID</th><th>Total</th><th>Status</th><th>Update</th></tr>"+
- rows.map(x=>`
- <tr><td>${esc(customerName(x.customer_id))}<br>${esc(customerEmail(x.customer_id))}</td>
- <td>${esc(x.id)}</td><td>${esc(x.total_amount)}</td><td><b>${esc(x.status)}</b></td>
- <td>
- <select id="orderstatus_${esc(x.id)}">
- ${["pending","paid","completed","cancelled"].map(s=>
- `<option value="${s}" ${x.status===s?"selected":""}>${s}</option>`).join("")}
- </select>
- <button onclick="updateOrder('${esc(x.id)}')">Save</button>
- </td></tr>`).join("")+"</table></div>":"No orders found.";
+ "<div class='tablewrap'><table>"+
+ "<tr>"+
+ "<th>Customer</th>"+
+ "<th>Order ID</th>"+
+ "<th>Product / Quantity</th>"+
+ "<th>Product Price</th>"+
+ "<th>Profit</th>"+
+ "<th>Expected Return</th>"+
+ "<th>Status</th>"+
+ "<th>Update</th>"+
+ "</tr>"+
+
+ rows.map(x=>{
+  const orderItems=items.filter(i=>String(i.order_id)===String(x.id));
+
+  const itemTotal=orderItems.reduce((sum,i)=>
+   sum+(Number(i.unit_price||0)*Number(i.quantity||0)),0
+  );
+
+  const productPrice=orderItems.length?
+   itemTotal:Number(x.total_amount||0);
+
+  const profit=Number(x.admin_profit||0);
+  const expectedReturn=productPrice+profit;
+
+  const itemText=orderItems.length?
+   orderItems.map(i=>`
+    <div>
+     <b>${esc(i.product_name||"Product")}</b>
+     <br>Quantity: ${esc(i.quantity)}
+     <br>Unit Price: $${money(i.unit_price)}
+    </div>
+   `).join("<hr>"):
+   "Product details unavailable";
+
+  return `
+  <tr>
+   <td>
+    ${esc(customerName(x.customer_id))}
+    <br>${esc(customerEmail(x.customer_id))}
+   </td>
+   <td>${esc(x.id)}</td>
+   <td>${itemText}</td>
+   <td>$${money(productPrice)}</td>
+   <td>$${money(profit)}</td>
+   <td><b>$${money(expectedReturn)}</b></td>
+   <td><b>${esc(x.status)}</b></td>
+   <td>
+    <select id="orderstatus_${esc(x.id)}">
+    ${["pending","paid","completed","cancelled"].map(s=>
+     `<option value="${s}" ${x.status===s?"selected":""}>${s}</option>`
+    ).join("")}
+    </select>
+    <button onclick="updateOrder('${esc(x.id)}')">Save</button>
+   </td>
+  </tr>`;
+ }).join("")+
+ "</table></div>":"No orders found.";
 }
 
-/* UPDATED ORDER SAVE FUNCTION */
+/* UPDATE ORDER STATUS */
 
 async function updateOrder(id){
  const select=document.getElementById("orderstatus_"+id);
@@ -819,4 +952,3 @@ check();
 </script>
 </body>
 </html>
-```
