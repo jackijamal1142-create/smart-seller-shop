@@ -12,7 +12,7 @@ body{margin:0;background:#f2f5fa;color:#202b40;font-family:Arial}
 header{height:60px;background:#17243b;color:white;padding:12px 18px;display:flex;justify-content:space-between;align-items:center}
 header b{color:#7ee6d2;font-size:19px}
 button{border:0;border-radius:7px;padding:9px 13px;margin:3px;background:#6256cf;color:white;cursor:pointer}
-button:disabled{opacity:.5}
+button:disabled{opacity:.5;cursor:not-allowed}
 .green{background:#159b79}.red{background:#d94b5c}.gray{background:#65738a}
 input,select,textarea{width:100%;padding:10px;border:1px solid #d5dce8;border-radius:7px;margin:6px 0 12px;font:inherit}
 label{font-size:13px;font-weight:bold}
@@ -83,7 +83,6 @@ main{padding:12px}
 <button onclick="go('notifications',this)">♧ Notifications</button>
 <button onclick="go('credit_score_history',this)">◷ Credit Score History</button>
 </aside>
-
 <main>
 <div id="notice"></div>
 <div id="content"></div>
@@ -96,8 +95,7 @@ const SUPABASE_KEY="sb_publishable_QrBZWYfua111aN24MjlXHw_c-Cf5yB1";
 const IMAGE_BUCKET="product-images";
 
 let db=null,customers=[],products=[],current="dashboard";
-let profitEdited=false;
-let pageVersion=0;
+let pageVersion=0,profitEdited=false;
 
 try{
  if(!window.supabase)throw new Error("Supabase library load nahi hui.");
@@ -120,8 +118,18 @@ function note(t,bad=false){
  n.textContent=t;
  n.className=bad?"error":"ok";
 }
-function money(v){return Number(v||0).toFixed(2);}
-function imageOf(p){return p?.image_url||p?.image||"";}
+function money(v){return Number(v||0).toFixed(2)}
+function imageOf(p){return p?.image_url||p?.image||""}
+function pageIs(page,version){
+ return current===page&&pageVersion===version;
+}
+function putContent(html,page=current,version=pageVersion){
+ if(!pageIs(page,version))return false;
+ const el=document.getElementById("content");
+ if(!el||!el.isConnected)return false;
+ el.innerHTML=html;
+ return true;
+}
 
 async function login(){
  if(!db)return;
@@ -144,7 +152,9 @@ async function login(){
   await start();
  }catch(e){
   document.getElementById("loginError").textContent=e.message;
- }finally{b.disabled=false;}
+ }finally{
+  b.disabled=false;
+ }
 }
 
 async function logout(){
@@ -169,8 +179,7 @@ async function check(){
   if(a.data)await start();
   else await db.auth.signOut();
  }catch(e){
-  const el=document.getElementById("loginError");
-  if(el)el.textContent=e.message;
+  document.getElementById("loginError").textContent=e.message;
  }
 }
 
@@ -179,22 +188,18 @@ async function loadCustomers(){
  if(r.error)throw r.error;
  customers=r.data||[];
 }
-
 async function loadProducts(){
  const r=await db.from("products").select("*").limit(1000);
  if(r.error)throw r.error;
  products=r.data||[];
 }
-
 function customerName(id){
  const c=customers.find(x=>String(x.id)===String(id));
  return c?(c.full_name||c.email||id):id;
 }
-
 function customerEmail(id){
  return customers.find(x=>String(x.id)===String(id))?.email||"Email not available";
 }
-
 function renderSimple(data){
  if(!data?.length)return "No records found";
  const keys=Object.keys(data[0]);
@@ -207,45 +212,41 @@ function renderSimple(data){
 
 async function go(page,btn){
  current=page;
- pageVersion++;
+ const version=++pageVersion;
  document.querySelectorAll("aside button").forEach(x=>x.classList.remove("active"));
  if(btn)btn.classList.add("active");
  document.querySelector("aside").classList.remove("open");
  note("");
  try{
-  if(page==="dashboard")return await dashboard();
-  if(page==="products")return await productPage();
-  if(page==="customer_products")return await customerProductsPage();
-  if(page==="orders")return await ordersPage();
-  if(page==="wallet_transactions")return await walletPage();
-  if(page==="withdrawals")return await withdrawalsPage();
-  if(page==="kyc_submissions")return await kycPage();
-  if(page==="support_messages")return await supportPage();
-  if(page==="notifications")return await notificationsPage();
-  if(page==="credit_score_history")return await creditPage();
- }catch(e){note(e.message,true);}
+  if(page==="dashboard")return await dashboard(version);
+  if(page==="products")return await productPage(version);
+  if(page==="customer_products")return await customerProductsPage(version);
+  if(page==="orders")return await ordersPage(version);
+  if(page==="wallet_transactions")return await walletPage(version);
+  if(page==="withdrawals")return await withdrawalsPage(version);
+  if(page==="kyc_submissions")return await kycPage(version);
+  if(page==="support_messages")return await supportPage(version);
+  if(page==="notifications")return await notificationsPage(version);
+  if(page==="credit_score_history")return await creditPage(version);
+ }catch(e){
+  if(pageIs(page,version))note(e.message,true);
+ }
 }
 
 /* DASHBOARD */
-async function dashboard(){
- const version=pageVersion;
+async function dashboard(version){
  const tables=[
-  ["profiles","Customers"],
-  ["products","Products"],
-  ["orders","Orders"],
-  ["withdrawals","Withdrawals"],
-  ["kyc_submissions","KYC Requests"],
+  ["profiles","Customers"],["products","Products"],["orders","Orders"],
+  ["withdrawals","Withdrawals"],["kyc_submissions","KYC Requests"],
   ["support_messages","Messages"]
  ];
  let html="<h2>Dashboard</h2><div class='cards'>";
  for(const [table,name] of tables){
   const r=await db.from(table).select("*",{count:"exact",head:true});
-  if(version!==pageVersion||current!=="dashboard")return;
+  if(!pageIs("dashboard",version))return;
   html+=`<div class="stat">${name}<strong>${r.error?"Error":r.count??0}</strong></div>`;
  }
- if(version!==pageVersion||current!=="dashboard")return;
- const content=document.getElementById("content");
- if(content)content.innerHTML=html+"</div>";
+ putContent(html+"</div>","dashboard",version);
 }
 
 /* PRODUCTS */
@@ -261,7 +262,6 @@ async function uploadProductImage(file){
  if(r.error)throw r.error;
  return db.storage.from(IMAGE_BUCKET).getPublicUrl(path).data.publicUrl;
 }
-
 function previewProductImage(){
  const file=document.getElementById("pimagefile")?.files?.[0];
  const preview=document.getElementById("imagePreview");
@@ -270,14 +270,10 @@ function previewProductImage(){
  preview.src=URL.createObjectURL(file);
  preview.style.display="block";
 }
-
-async function productPage(){
- const version=pageVersion;
+async function productPage(version=pageVersion){
  await loadProducts();
- if(version!==pageVersion||current!=="products")return;
- const content=document.getElementById("content");
- if(!content)return;
- content.innerHTML=`
+ if(!pageIs("products",version))return;
+ putContent(`
  <h2>Products</h2>
  <div class="panel">
  <h3>Create Product</h3>
@@ -290,51 +286,44 @@ async function productPage(){
  <p class="muted">Image maximum size 5 MB.</p>
  <button class="green" id="addProductButton" onclick="addProduct()">Upload Picture & Add Product</button>
  </div>
- <div class="panel"><h3>All Products</h3><div id="productList"></div></div>`;
+ <div class="panel"><h3>All Products</h3><div id="productList"></div></div>
+ `,"products",version);
  renderProducts();
 }
-
 function renderProducts(){
- const el=document.getElementById("productList");
- if(!el)return;
- el.innerHTML=
- "<div class='tablewrap'><table><tr><th>Picture</th><th>Name</th><th>Price</th><th>Category</th><th>Actions</th></tr>"+
+ const target=document.getElementById("productList");
+ if(!target||!target.isConnected)return;
+ target.innerHTML="<div class='tablewrap'><table><tr><th>Picture</th><th>Name</th><th>Price</th><th>Category</th><th>Actions</th></tr>"+
  products.map(p=>`
  <tr>
  <td>${imageOf(p)?`<img class="product" src="${esc(imageOf(p))}">`:"-"}</td>
- <td>${esc(p.name)}</td><td>${esc(p.price)}</td>
- <td>${esc(p.category)}</td>
+ <td>${esc(p.name)}</td><td>${esc(p.price)}</td><td>${esc(p.category)}</td>
  <td>
  <button onclick="editProduct('${esc(p.id)}')">Edit</button>
  <button class="red" onclick="deleteProduct('${esc(p.id)}')">Delete</button>
  </td></tr>`).join("")+"</table></div>";
 }
-
 async function addProduct(){
- const name=val("pname");
- const price=Number(val("pprice"));
+ const name=val("pname"),price=Number(val("pprice"));
  if(!name||val("pprice")===""||!Number.isFinite(price)||price<0)
   return note("Product name aur valid price likhein.",true);
-
  const b=document.getElementById("addProductButton");
  if(!b)return;
  b.disabled=true;
  try{
   const image=await uploadProductImage(document.getElementById("pimagefile")?.files?.[0]);
   const r=await db.from("products").insert({
-   name,price,category:val("pcat")||null,
-   image:image,image_url:image
+   name,price,category:val("pcat")||null,image:image,image_url:image
   });
   if(r.error)throw r.error;
   note("Product successfully add ho gaya.");
   if(current==="products")await productPage();
- }catch(e){note(e.message,true);}
+ }catch(e){note(e.message,true)}
  finally{
-  const button=document.getElementById("addProductButton");
-  if(button)button.disabled=false;
+  const btn=document.getElementById("addProductButton");
+  if(btn)btn.disabled=false;
  }
 }
-
 async function editProduct(id){
  const p=products.find(x=>String(x.id)===String(id));
  if(!p)return;
@@ -344,23 +333,23 @@ async function editProduct(id){
  if(price===null)return;
  const category=prompt("Category",p.category||"");
  if(category===null)return;
-
  let image=imageOf(p);
  if(confirm("Picture change karni hai? OK = new picture, Cancel = old picture.")){
   const picker=document.createElement("input");
   picker.type="file";picker.accept="image/*";
-  picker.click();
-  const file=await new Promise(resolve=>{
+  const filePromise=new Promise(resolve=>{
    picker.onchange=()=>resolve(picker.files?.[0]||null);
+   picker.oncancel=()=>resolve(null);
   });
+  picker.click();
+  const file=await filePromise;
   if(!file)return;
-  try{image=await uploadProductImage(file);}
-  catch(e){return note(e.message,true);}
+  try{image=await uploadProductImage(file)}
+  catch(e){return note(e.message,true)}
  }
  const n=Number(price);
  if(!name.trim()||!Number.isFinite(n)||n<0)
   return note("Name aur price check karein.",true);
-
  const r=await db.from("products").update({
   name:name.trim(),price:n,category:category||null,
   image:image||null,image_url:image||null
@@ -369,7 +358,6 @@ async function editProduct(id){
  note("Product updated.");
  if(current==="products")await productPage();
 }
-
 async function deleteProduct(id){
  if(!confirm("Delete this product?"))return;
  const r=await db.from("products").delete().eq("id",id);
@@ -379,79 +367,60 @@ async function deleteProduct(id){
 }
 
 /* CUSTOMER PRODUCTS */
-async function customerProductsPage(){
- const version=pageVersion;
+async function customerProductsPage(version=pageVersion){
  await loadCustomers();
- if(version!==pageVersion||current!=="customer_products")return;
+ if(!pageIs("customer_products",version))return;
  const r=await db.from("customer_products").select("*").limit(1000);
  if(r.error)throw r.error;
- if(version!==pageVersion||current!=="customer_products")return;
-
+ if(!pageIs("customer_products",version))return;
  const groups={};
- (r.data||[]).forEach(p=>{
-  (groups[p.customer_id]??=[]).push(p);
- });
+ (r.data||[]).forEach(p=>(groups[p.customer_id]??=[]).push(p));
  window.customerProductGroups=groups;
-
- const content=document.getElementById("content");
- if(!content)return;
- content.innerHTML=`
+ putContent(`
  <h2>Customer Products</h2>
  <div class="panel">
  <input id="cpSearch" placeholder="Search customer name or Gmail" oninput="filterCP()">
  <div id="customerProductList"></div>
- </div>`;
+ </div>`,"customer_products",version);
  renderCP(Object.keys(groups));
 }
-
 function renderCP(ids){
- const el=document.getElementById("customerProductList");
- if(!el)return;
- el.innerHTML=
- ids.map(id=>`
+ const target=document.getElementById("customerProductList");
+ if(!target||!target.isConnected)return;
+ target.innerHTML=ids.map(id=>`
  <div class="customer" onclick="showCustomerProducts('${esc(id)}')">
  <b>${esc(customerName(id))}</b><br>
- <span class="muted">${esc(customerEmail(id))} | ${window.customerProductGroups[id].length} products</span>
+ <span class="muted">${esc(customerEmail(id))} | ${(window.customerProductGroups[id]||[]).length} products</span>
  </div>`).join("")||"No customer products found.";
 }
-
 function filterCP(){
- const q=val("cpSearch").toLowerCase();
- const groups=window.customerProductGroups||{};
+ const q=val("cpSearch").toLowerCase(),groups=window.customerProductGroups||{};
  const ids=Object.keys(groups).filter(id=>
-  (String(customerName(id))+" "+customerEmail(id)).toLowerCase().includes(q)
- );
+ (String(customerName(id))+" "+customerEmail(id)).toLowerCase().includes(q));
  renderCP(ids);
 }
-
 function showCustomerProducts(id){
- const items=window.customerProductGroups[id]||[];
+ const items=window.customerProductGroups?.[id]||[];
  const c=customers.find(x=>String(x.id)===String(id));
- const content=document.getElementById("content");
- if(!content)return;
- content.innerHTML=`
+ putContent(`
  <button class="gray" onclick="customerProductsPage()">← Back</button>
  <div class="panel"><h2>${esc(customerName(id))}</h2>
  Gmail: ${esc(c?.email||"Email not available")}</div>
- <div class="panel"><h3>Customer Products</h3>${renderSimple(items)}</div>`;
+ <div class="panel"><h3>Customer Products</h3>${renderSimple(items)}</div>
+ `,"customer_products",pageVersion);
 }
 
 /* ORDERS */
-async function ordersPage(){
- const version=pageVersion;
+async function ordersPage(version=pageVersion){
  await Promise.all([loadCustomers(),loadProducts()]);
- if(version!==pageVersion||current!=="orders")return;
+ if(!pageIs("orders",version))return;
  profitEdited=false;
-
- const content=document.getElementById("content");
- if(!content)return;
- content.innerHTML=`
+ putContent(`
  <h2>Orders</h2>
  <div class="panel">
  <h3>Send Order to Customer</h3>
  <label>Customer</label>
- <select id="ocustomer">
- <option value="">Select customer</option>
+ <select id="ocustomer"><option value="">Select customer</option>
  ${customers.map(c=>`<option value="${esc(c.id)}">${esc(c.full_name||c.email||c.id)} — ${esc(c.email||"")}</option>`).join("")}
  </select>
  <label>Product</label>
@@ -462,122 +431,83 @@ async function ordersPage(){
  <label>Quantity</label>
  <input id="oqty" type="number" min="1" value="1" oninput="calcOrder()">
  <label>Admin Profit (20% automatic - manually editable)</label>
- <input id="oprofit" type="number" min="0" step="0.01"
- value="0" oninput="profitEdited=true;calcOrder()">
+ <input id="oprofit" type="number" min="0" step="0.01" value="0" oninput="profitEdited=true;calcOrder()">
  <div class="order-calculation">
  <p>Product Price <strong id="productPrice">$0.00</strong></p>
  <p>Profit <strong id="profitDisplay">$0.00</strong></p>
  <p>Expected Return <strong id="expectedReturn">$0.00</strong></p>
  </div>
- <p class="muted">Profit automatically 20% calculate hoga. Admin zaroorat par manually change kar sakta hai.</p>
+ <p class="muted">Profit automatically 20% calculate hoga. Admin manually change kar sakta hai.</p>
  <button class="green" id="sendOrderButton" onclick="sendOrder()">SEND ORDER</button>
  </div>
- <div class="panel">
- <h3>Orders List</h3>
+ <div class="panel"><h3>Orders List</h3>
  <button class="gray" onclick="loadOrders()">Refresh</button>
- <div id="orderList"></div>
- </div>`;
-
+ <div id="orderList"></div></div>
+ `,"orders",version);
  calcOrder(true);
  await loadOrders();
 }
-
 function calcOrder(resetProfit=false){
  const p=products.find(x=>String(x.id)===val("oproduct"));
- const qty=Number(val("oqty"));
- const validQty=Number.isInteger(qty)&&qty>0?qty:0;
- const unitPrice=Number(p?.price||0);
- const productPrice=unitPrice*validQty;
+ const qty=Number(val("oqty")),validQty=Number.isInteger(qty)&&qty>0?qty:0;
+ const productPrice=Number(p?.price||0)*validQty;
  const profitInput=document.getElementById("oprofit");
+ if(!profitInput)return;
+ if(resetProfit||!profitEdited)profitInput.value=money(productPrice*.20);
+ const profit=Number(profitInput.value||0);
  const priceEl=document.getElementById("productPrice");
  const profitEl=document.getElementById("profitDisplay");
  const returnEl=document.getElementById("expectedReturn");
- if(!profitInput||!priceEl||!profitEl||!returnEl)return;
-
- if(resetProfit||!profitEdited){
-  profitInput.value=money(productPrice*0.20);
- }
- const profit=Number(profitInput.value||0);
- const expectedReturn=productPrice+profit;
- priceEl.textContent="$"+money(productPrice);
- profitEl.textContent="$"+money(profit);
- returnEl.textContent="$"+money(expectedReturn);
+ if(priceEl)priceEl.textContent="$"+money(productPrice);
+ if(profitEl)profitEl.textContent="$"+money(profit);
+ if(returnEl)returnEl.textContent="$"+money(productPrice+profit);
 }
-
 async function sendOrder(){
- const cid=val("ocustomer");
- const pid=val("oproduct");
- const qty=Number(val("oqty"));
+ const cid=val("ocustomer"),pid=val("oproduct"),qty=Number(val("oqty"));
  const p=products.find(x=>String(x.id)===pid);
-
  if(!cid||!p||!Number.isInteger(qty)||qty<1)
   return note("Customer, product aur quantity select karein.",true);
-
  const unitPrice=Number(p.price);
  if(!Number.isFinite(unitPrice)||unitPrice<0)
   return note("Product ki price valid nahi hai.",true);
-
- const total=unitPrice*qty;
- const profit=Number(val("oprofit"));
- const expectedReturn=total+profit;
+ const total=unitPrice*qty,profit=Number(val("oprofit"));
  if(!Number.isFinite(profit)||profit<0)
   return note("Profit amount check karein.",true);
-
  const b=document.getElementById("sendOrderButton");
  if(!b)return;
  b.disabled=true;
-
  try{
   const o=await db.from("orders").insert({
-   customer_id:cid,
-   status:"pending",
-   total_amount:total,
-   admin_profit:profit
+   customer_id:cid,status:"pending",total_amount:total,admin_profit:profit
   }).select("id").single();
-
   if(o.error)throw o.error;
-
   const it=await db.from("order_items").insert({
-   order_id:o.data.id,
-   product_id:p.id,
-   product_name:p.name,
-   quantity:qty,
-   unit_price:unitPrice
+   order_id:o.data.id,product_id:p.id,product_name:p.name,
+   quantity:qty,unit_price:unitPrice
   });
-
   if(it.error){
    await db.from("orders").delete().eq("id",o.data.id);
    throw it.error;
   }
-
   note("Order sent. Product Price: $"+money(total)+
-   " | Profit: $"+money(profit)+
-   " | Expected Return: $"+money(expectedReturn));
-
-  if(current==="orders"){
-   const productSelect=document.getElementById("oproduct");
-   const qtyInput=document.getElementById("oqty");
-   if(productSelect)productSelect.value="";
-   if(qtyInput)qtyInput.value="1";
-   profitEdited=false;
-   calcOrder(true);
-   await loadOrders();
-  }
- }catch(e){
-  note("Order save error: "+e.message,true);
- }finally{
-  const button=document.getElementById("sendOrderButton");
-  if(button)button.disabled=false;
+   " | Profit: $"+money(profit)+" | Expected Return: $"+money(total+profit));
+  const productSelect=document.getElementById("oproduct");
+  const qtyInput=document.getElementById("oqty");
+  if(productSelect)productSelect.value="";
+  if(qtyInput)qtyInput.value="1";
+  profitEdited=false;
+  calcOrder(true);
+  if(current==="orders")await loadOrders();
+ }catch(e){note("Order save error: "+e.message,true)}
+ finally{
+  const btn=document.getElementById("sendOrderButton");
+  if(btn)btn.disabled=false;
  }
 }
 
 /* COMPLETED ORDER WALLET CREDIT */
 async function creditCompletedOrder(orderId){
- const orderResult=await db.from("orders")
-  .select("*")
-  .eq("id",orderId)
-  .single();
-
+ const orderResult=await db.from("orders").select("*").eq("id",orderId).single();
  if(orderResult.error)throw orderResult.error;
  const order=orderResult.data;
  if(String(order.status).toLowerCase()!=="completed")return;
@@ -585,188 +515,127 @@ async function creditCompletedOrder(orderId){
  const customerId=order.customer_id;
  const productPrice=Number(order.total_amount??order.product_price??0);
  const profit=Number(order.admin_profit??0);
-
  if(!customerId)throw new Error("Order customer missing.");
  if(!Number.isFinite(productPrice)||productPrice<0||
-    !Number.isFinite(profit)||profit<0)
-  throw new Error("Order amount invalid.");
+    !Number.isFinite(profit)||profit<0)throw new Error("Order amount invalid.");
 
- const depositCheck=await db.from("wallet_transactions")
-  .select("id")
-  .eq("customer_id",customerId)
-  .eq("reference_id",orderId)
-  .eq("transaction_type","deposit")
-  .limit(1);
-
+ const depositCheck=await db.from("wallet_transactions").select("id")
+  .eq("customer_id",customerId).eq("reference_id",orderId)
+  .eq("transaction_type","deposit").limit(1);
  if(depositCheck.error)throw depositCheck.error;
 
  if(!depositCheck.data.length&&productPrice>0){
   const deposit=await db.from("wallet_transactions").insert({
-   customer_id:customerId,
-   amount:productPrice,
-   transaction_type:"deposit",
-   status:"completed",
-   description:"Completed order product price returned",
+   customer_id:customerId,amount:productPrice,transaction_type:"deposit",
+   status:"completed",description:"Completed order product price returned",
    reference_id:orderId
   });
   if(deposit.error)throw deposit.error;
  }
 
- const profitCheck=await db.from("wallet_transactions")
-  .select("id")
-  .eq("customer_id",customerId)
-  .eq("reference_id",orderId)
-  .eq("transaction_type","profit")
-  .limit(1);
-
+ const profitCheck=await db.from("wallet_transactions").select("id")
+  .eq("customer_id",customerId).eq("reference_id",orderId)
+  .eq("transaction_type","profit").limit(1);
  if(profitCheck.error)throw profitCheck.error;
 
  if(!profitCheck.data.length&&profit>0){
-  const profitResult=await db.from("wallet_transactions").insert({
-   customer_id:customerId,
-   amount:profit,
-   transaction_type:"profit",
-   status:"completed",
-   description:"Completed order profit",
-   reference_id:orderId
+  const result=await db.from("wallet_transactions").insert({
+   customer_id:customerId,amount:profit,transaction_type:"profit",
+   status:"completed",description:"Completed order profit",reference_id:orderId
   });
-  if(profitResult.error)throw profitResult.error;
+  if(result.error)throw result.error;
  }
 }
 
-/* LOAD ORDERS - NULL ERROR FIX */
+/* LOAD ORDERS - SAFE PAGE CHECKS */
 async function loadOrders(){
  const version=pageVersion;
  if(current!=="orders")return;
+ const target=document.getElementById("orderList");
+ if(!target||!target.isConnected)return;
 
  const r=await db.from("orders").select("*")
   .order("created_at",{ascending:false}).limit(300);
-
- if(r.error){
-  if(current==="orders")note(r.error.message,true);
-  return;
- }
+ if(r.error){if(pageIs("orders",version))note(r.error.message,true);return}
  const rows=r.data||[];
 
  for(const order of rows){
+  if(!pageIs("orders",version))return;
   if(String(order.status).toLowerCase()==="completed"){
-   try{
-    await creditCompletedOrder(order.id);
-   }catch(e){
+   try{await creditCompletedOrder(order.id)}
+   catch(e){
     console.error("Wallet credit error:",order.id,e.message);
-    if(current==="orders")note("Wallet credit error: "+e.message,true);
+    if(pageIs("orders",version))note("Wallet credit error: "+e.message,true);
    }
   }
  }
-
- if(version!==pageVersion||current!=="orders")return;
+ if(!pageIs("orders",version))return;
 
  await loadCustomers();
- if(version!==pageVersion||current!=="orders")return;
+ if(!pageIs("orders",version))return;
 
  let items=[];
  if(rows.length){
-  const ids=rows.map(x=>x.id);
-  const ir=await db.from("order_items").select("*").in("order_id",ids);
-  if(ir.error){
-   if(current==="orders")note("Order items load error: "+ir.error.message,true);
-   return;
-  }
+  const ir=await db.from("order_items").select("*").in("order_id",rows.map(x=>x.id));
+  if(ir.error){if(pageIs("orders",version))note("Order items load error: "+ir.error.message,true);return}
   items=ir.data||[];
  }
+ if(!pageIs("orders",version))return;
 
- if(version!==pageVersion||current!=="orders")return;
- const orderList=document.getElementById("orderList");
- if(!orderList||!orderList.isConnected)return;
+ const list=document.getElementById("orderList");
+ if(!list||!list.isConnected)return;
 
- orderList.innerHTML=rows.length?
- "<div class='tablewrap'><table>"+
- "<tr><th>Customer</th><th>Order ID</th><th>Product / Quantity</th>"+
- "<th>Product Price</th><th>Profit</th><th>Expected Return</th>"+
- "<th>Status</th><th>Update</th></tr>"+
+ list.innerHTML=rows.length?
+ "<div class='tablewrap'><table><tr><th>Customer</th><th>Order ID</th><th>Product / Quantity</th><th>Product Price</th><th>Profit</th><th>Expected Return</th><th>Status</th><th>Update</th></tr>"+
  rows.map(x=>{
   const orderItems=items.filter(i=>String(i.order_id)===String(x.id));
-  const itemTotal=orderItems.reduce((sum,i)=>
-   sum+(Number(i.unit_price||0)*Number(i.quantity||0)),0
-  );
+  const itemTotal=orderItems.reduce((sum,i)=>sum+Number(i.unit_price||0)*Number(i.quantity||0),0);
   const productPrice=orderItems.length?itemTotal:Number(x.total_amount??x.product_price??0);
   const profit=Number(x.admin_profit||0);
-  const expectedReturn=productPrice+profit;
-  const itemText=orderItems.length?
-   orderItems.map(i=>`
-    <div><b>${esc(i.product_name||"Product")}</b>
-    <br>Quantity: ${esc(i.quantity)}
-    <br>Unit Price: $${money(i.unit_price)}</div>
-   `).join("<hr>"):"Product details unavailable";
-
-  return `
-  <tr>
+  const itemText=orderItems.length?orderItems.map(i=>`
+   <div><b>${esc(i.product_name||"Product")}</b><br>
+   Quantity: ${esc(i.quantity)}<br>Unit Price: $${money(i.unit_price)}</div>
+  `).join("<hr>"):"Product details unavailable";
+  return `<tr>
    <td>${esc(customerName(x.customer_id))}<br>${esc(customerEmail(x.customer_id))}</td>
-   <td>${esc(x.id)}</td>
-   <td>${itemText}</td>
-   <td>$${money(productPrice)}</td>
-   <td>$${money(profit)}</td>
-   <td><b>$${money(expectedReturn)}</b></td>
-   <td><b>${esc(x.status)}</b></td>
-   <td>
-    <select id="orderstatus_${esc(x.id)}">
-    ${["pending","paid","completed","cancelled"].map(s=>
-     `<option value="${s}" ${x.status===s?"selected":""}>${s}</option>`
-    ).join("")}
-    </select>
-    <button onclick="updateOrder('${esc(x.id)}')">Save</button>
-   </td>
+   <td>${esc(x.id)}</td><td>${itemText}</td>
+   <td>$${money(productPrice)}</td><td>$${money(profit)}</td>
+   <td><b>$${money(productPrice+profit)}</b></td><td><b>${esc(x.status)}</b></td>
+   <td><select id="orderstatus_${esc(x.id)}">
+   ${["pending","paid","completed","cancelled"].map(s=>
+    `<option value="${s}" ${x.status===s?"selected":""}>${s}</option>`).join("")}
+   </select><button onclick="updateOrder('${esc(x.id)}')">Save</button></td>
   </tr>`;
  }).join("")+"</table></div>":"No orders found.";
 }
-</script>
-</body>
-</html>
 
-/* UPDATE ORDER STATUS */
 async function updateOrder(id){
  const select=document.getElementById("orderstatus_"+id);
  if(!select)return note("Order status select nahi mila.",true);
-
  const status=select.value;
- const allowed=["pending","paid","completed","cancelled"];
- if(!allowed.includes(status))return note("Invalid order status.",true);
-
+ if(!["pending","paid","completed","cancelled"].includes(status))
+  return note("Invalid order status.",true);
  select.disabled=true;
  try{
-  const r=await db.from("orders")
-   .update({status:status})
-   .eq("id",id)
-   .select("*")
-   .single();
-
+  const r=await db.from("orders").update({status}).eq("id",id).select("*").single();
   if(r.error)throw r.error;
-
   if(status==="completed"){
    await creditCompletedOrder(id);
-   note("Order completed. Product price aur profit customer wallet mein add ho gaye.");
-  }else{
-   note("Order successfully "+status+" ho gaya.");
-  }
+   note("Order completed. Wallet credit check ho gaya.");
+  }else note("Order successfully "+status+" ho gaya.");
   if(current==="orders")await loadOrders();
- }catch(e){
-  note("Order save error: "+e.message,true);
- }finally{
-  const updatedSelect=document.getElementById("orderstatus_"+id);
-  if(updatedSelect)updatedSelect.disabled=false;
+ }catch(e){note("Order save error: "+e.message,true)}
+ finally{
+  const s=document.getElementById("orderstatus_"+id);
+  if(s)s.disabled=false;
  }
 }
 
 /* WALLET MANAGEMENT */
-async function walletPage(){
- const version=pageVersion;
+async function walletPage(version=pageVersion){
  await loadCustomers();
- if(version!==pageVersion||current!=="wallet_transactions")return;
-
- const content=document.getElementById("content");
- if(!content)return;
-
- content.innerHTML=`
+ if(!pageIs("wallet_transactions",version))return;
+ putContent(`
  <h2>Wallet Management</h2>
  <div class="panel">
  <label>Customer</label>
@@ -774,171 +643,123 @@ async function walletPage(){
  <option value="">Select customer</option>
  ${customers.map(c=>`<option value="${esc(c.id)}">${esc(c.full_name||c.email||c.id)} — ${esc(c.email||"")}</option>`).join("")}
  </select>
- <label>Amount</label>
- <input id="wamount" type="number" step="0.01" min="0.01">
+ <label>Amount</label><input id="wamount" type="number" step="0.01" min="0.01">
  <label>Transaction</label>
  <select id="wtype">
-  <option value="deposit">Add Balance</option>
-  <option value="purchase">Minus Balance</option>
-  <option value="profit">Add Profit</option>
+ <option value="deposit">Add Balance</option>
+ <option value="purchase">Minus Balance</option>
+ <option value="profit">Add Profit</option>
  </select>
- <label>Description</label>
- <input id="wdesc" placeholder="Transaction details">
+ <label>Description</label><input id="wdesc" placeholder="Transaction details">
  <button class="green" id="walletSaveButton" onclick="walletAction()">Save Wallet Transaction</button>
  </div>
  <div class="panel"><h3>Wallet Summary</h3><div id="walletSummary">Select customer.</div></div>
  <div class="panel"><h3>Wallet History</h3>
- <button class="gray" onclick="walletHistory()">Refresh</button>
- <div id="walletList"></div></div>`;
+ <button class="gray" onclick="walletHistory()">Refresh</button><div id="walletList"></div></div>
+ `,"wallet_transactions",version);
 }
-
 async function walletAction(){
- const cid=val("wcustomer");
- const amount=Number(val("wamount"));
- const type=val("wtype");
-
+ const cid=val("wcustomer"),amount=Number(val("wamount")),type=val("wtype");
  if(!cid||!Number.isFinite(amount)||amount<=0)
   return note("Customer aur valid amount select karein.",true);
-
  const b=document.getElementById("walletSaveButton");
  if(!b)return;
  b.disabled=true;
  try{
   const r=await db.from("wallet_transactions").insert({
-   customer_id:cid,
-   amount,
-   transaction_type:type,
-   status:"completed",
-   description:val("wdesc")||type,
-   reference_id:null
+   customer_id:cid,amount,transaction_type:type,status:"completed",
+   description:val("wdesc")||type,reference_id:null
   });
   if(r.error)throw r.error;
-
   note("Wallet transaction save ho gaya.");
-  const amountInput=document.getElementById("wamount");
-  const descInput=document.getElementById("wdesc");
-  if(amountInput)amountInput.value="";
-  if(descInput)descInput.value="";
-  if(current==="wallet_transactions")await walletHistory();
- }catch(e){
-  note(e.message,true);
- }finally{
-  const button=document.getElementById("walletSaveButton");
-  if(button)button.disabled=false;
+  const amountEl=document.getElementById("wamount");
+  const descEl=document.getElementById("wdesc");
+  if(amountEl)amountEl.value="";
+  if(descEl)descEl.value="";
+  await walletHistory();
+ }catch(e){note(e.message,true)}
+ finally{
+  const btn=document.getElementById("walletSaveButton");
+  if(btn)btn.disabled=false;
  }
 }
 
+/* WALLET CALCULATION */
 async function walletHistory(){
- const cid=val("wcustomer");
+ const version=pageVersion,cid=val("wcustomer");
  const summary=document.getElementById("walletSummary");
  const list=document.getElementById("walletList");
-
- if(!cid){
-  if(summary)summary.innerHTML="Select customer.";
-  if(list)list.innerHTML="";
-  return;
- }
+ if(!summary||!list)return;
+ if(!cid){summary.innerHTML="Select customer.";list.innerHTML="";return}
 
  try{
   const [walletResult,ordersResult]=await Promise.all([
-   db.from("wallet_transactions")
-    .select("*")
-    .eq("customer_id",cid)
-    .order("created_at",{ascending:false})
-    .limit(500),
-
-   db.from("orders")
-    .select("id,total_amount,product_price,status")
-    .eq("customer_id",cid)
-    .limit(1000)
+   db.from("wallet_transactions").select("*").eq("customer_id",cid)
+    .order("created_at",{ascending:false}).limit(500),
+   db.from("orders").select("id,total_amount,product_price,status")
+    .eq("customer_id",cid).limit(1000)
   ]);
-
+  if(!pageIs("wallet_transactions",version))return;
   if(walletResult.error)throw walletResult.error;
   if(ordersResult.error)throw ordersResult.error;
 
-  const data=walletResult.data||[];
-  const orders=ordersResult.data||[];
-
-  let balance=0;
-  let profit=0;
-  let applied=0;
+  const data=walletResult.data||[],orders=ordersResult.data||[];
+  let balance=0,profit=0,applied=0;
 
   data.forEach(x=>{
    const type=String(x.transaction_type||"").toLowerCase().trim();
    const status=String(x.status||"").toLowerCase().trim();
    const amount=Number(x.amount||0);
-
    if(!["approved","completed","success","successful","paid"].includes(status))return;
    if(!Number.isFinite(amount))return;
 
-   if(["deposit","credit","refund","income","add_balance"].includes(type)){
-    balance+=amount;
-   }
-
-   if(["purchase","withdrawal","payment","debit","minus"].includes(type)){
-    balance-=amount;
-   }
-
-   if(type==="profit"){
-    balance+=amount;
-    profit+=amount;
-   }
+   if(["deposit","credit","refund","income","add_balance"].includes(type))balance+=amount;
+   else if(["purchase","withdrawal","payment","debit","minus"].includes(type))balance-=amount;
+   else if(type==="profit"){balance+=amount;profit+=amount}
   });
 
-  const activeStatuses=[
-   "pickup","processing","shipped","picked_up","picked up","in_progress"
+  /* Applied balance: only orders customer has paid for / picked up
+     and which are not yet completed or cancelled. */
+  const appliedStatuses=[
+   "paid","pickup","picked_up","picked up","processing",
+   "shipped","in_progress","in progress"
   ];
-
   orders.forEach(o=>{
    const status=String(o.status||"").toLowerCase().trim();
-   if(!activeStatuses.includes(status))return;
-
+   if(!appliedStatuses.includes(status))return;
    const amount=Number(o.total_amount??o.product_price??0);
    if(Number.isFinite(amount)&&amount>0)applied+=amount;
   });
 
-  const latestSummary=document.getElementById("walletSummary");
-  const latestList=document.getElementById("walletList");
-
-  if(latestSummary){
-   latestSummary.innerHTML=`
-    <div class="cards">
-     <div class="stat">Available Balance<strong>$${money(balance)}</strong></div>
-     <div class="stat">Total Profit<strong>$${money(profit)}</strong></div>
-     <div class="stat">Applied Balance<strong>$${money(applied)}</strong></div>
-    </div>`;
-  }
-
-  if(latestList)latestList.innerHTML=renderSimple(data);
-
+  if(!pageIs("wallet_transactions",version))return;
+  summary.innerHTML=`
+   <div class="cards">
+    <div class="stat">Available Balance<strong>$${money(balance)}</strong></div>
+    <div class="stat">Total Profit<strong>$${money(profit)}</strong></div>
+    <div class="stat">Applied Balance<strong>$${money(applied)}</strong></div>
+   </div>`;
+  list.innerHTML=renderSimple(data);
  }catch(e){
-  note("Wallet load error: "+e.message,true);
+  if(pageIs("wallet_transactions",version))note("Wallet load error: "+e.message,true);
  }
 }
 
 /* WITHDRAWALS */
-async function withdrawalsPage(){
- const version=pageVersion;
+async function withdrawalsPage(version=pageVersion){
  await loadCustomers();
- if(version!==pageVersion||current!=="withdrawals")return;
-
+ if(!pageIs("withdrawals",version))return;
  const r=await db.from("withdrawals").select("*")
   .order("created_at",{ascending:false}).limit(300);
  if(r.error)throw r.error;
- if(version!==pageVersion||current!=="withdrawals")return;
-
- const content=document.getElementById("content");
- if(!content)return;
-
- content.innerHTML=`
+ if(!pageIs("withdrawals",version))return;
+ putContent(`
  <h2>Withdrawals</h2>
  <button class="gray" onclick="withdrawalsPage()">Refresh Requests</button>
- <div id="withdrawList"></div>`;
-
- const list=document.getElementById("withdrawList");
- if(!list)return;
-
- list.innerHTML=(r.data||[]).map(x=>`
+ <div id="withdrawList"></div>
+ `,"withdrawals",version);
+ const target=document.getElementById("withdrawList");
+ if(!target)return;
+ target.innerHTML=(r.data||[]).map(x=>`
  <div class="panel">
  <b>${esc(customerName(x.customer_id))}</b>
  <p>Gmail: ${esc(customerEmail(x.customer_id))}</p>
@@ -950,43 +771,31 @@ async function withdrawalsPage(){
  <button class="red" onclick="withdrawStatus('${esc(x.id)}','rejected')">Reject</button>
  </div>`).join("")||"No withdrawal requests.";
 }
-
 async function withdrawStatus(id,status){
  const adminNote=prompt("Admin note (optional)","");
  if(adminNote===null)return;
-
- const r=await db.from("withdrawals").update({
-  status,admin_note:adminNote
- }).eq("id",id);
-
+ const r=await db.from("withdrawals").update({status,admin_note:adminNote}).eq("id",id);
  if(r.error)return note(r.error.message,true);
  note("Withdrawal updated.");
  if(current==="withdrawals")await withdrawalsPage();
 }
 
 /* KYC */
-async function kycPage(){
- const version=pageVersion;
+async function kycPage(version=pageVersion){
  await loadCustomers();
- if(version!==pageVersion||current!=="kyc_submissions")return;
-
+ if(!pageIs("kyc_submissions",version))return;
  const r=await db.from("kyc_submissions").select("*")
   .order("created_at",{ascending:false}).limit(300);
  if(r.error)throw r.error;
- if(version!==pageVersion||current!=="kyc_submissions")return;
-
- const content=document.getElementById("content");
- if(!content)return;
-
- content.innerHTML=`
+ if(!pageIs("kyc_submissions",version))return;
+ putContent(`
  <h2>KYC Requests</h2>
  <button class="gray" onclick="kycPage()">Refresh</button>
- <div id="kycList"></div>`;
-
- const list=document.getElementById("kycList");
- if(!list)return;
-
- list.innerHTML=(r.data||[]).map(x=>`
+ <div id="kycList"></div>
+ `,"kyc_submissions",version);
+ const target=document.getElementById("kycList");
+ if(!target)return;
+ target.innerHTML=(r.data||[]).map(x=>`
  <div class="panel">
  <b>${esc(customerName(x.customer_id))}</b>
  <p>Gmail: ${esc(customerEmail(x.customer_id))}</p>
@@ -996,7 +805,6 @@ async function kycPage(){
  <button class="red" onclick="kycStatus('${esc(x.id)}','rejected')">Reject</button>
  </div>`).join("")||"No KYC requests.";
 }
-
 async function kycStatus(id,status){
  const r=await db.from("kyc_submissions").update({status}).eq("id",id);
  if(r.error)return note(r.error.message,true);
@@ -1005,28 +813,21 @@ async function kycStatus(id,status){
 }
 
 /* CUSTOMER SERVICE */
-async function supportPage(){
- const version=pageVersion;
+async function supportPage(version=pageVersion){
  await loadCustomers();
- if(version!==pageVersion||current!=="support_messages")return;
-
+ if(!pageIs("support_messages",version))return;
  const r=await db.from("support_messages").select("*")
   .order("created_at",{ascending:false}).limit(300);
  if(r.error)throw r.error;
- if(version!==pageVersion||current!=="support_messages")return;
-
- const content=document.getElementById("content");
- if(!content)return;
-
- content.innerHTML=`
+ if(!pageIs("support_messages",version))return;
+ putContent(`
  <h2>Customer Service</h2>
  <button class="gray" onclick="supportPage()">Refresh Messages</button>
- <div id="supportList"></div>`;
-
- const list=document.getElementById("supportList");
- if(!list)return;
-
- list.innerHTML=(r.data||[]).map(x=>`
+ <div id="supportList"></div>
+ `,"support_messages",version);
+ const target=document.getElementById("supportList");
+ if(!target)return;
+ target.innerHTML=(r.data||[]).map(x=>`
  <div class="panel">
  <b>${esc(customerName(x.customer_id))}</b>
  <p>Gmail: ${esc(customerEmail(x.customer_id))}</p>
@@ -1036,105 +837,69 @@ async function supportPage(){
  <button class="green" onclick="sendReply('${esc(x.id)}')">Send Reply</button>
  </div>`).join("")||"No messages.";
 }
-
 async function sendReply(id){
  const el=document.getElementById("reply_"+id);
  if(!el||!el.value.trim())return note("Reply likhein.",true);
-
  const r=await db.from("support_messages").update({
   reply:el.value.trim(),status:"answered"
  }).eq("id",id);
-
  if(r.error)return note(r.error.message,true);
  note("Reply customer ke message mein save ho gaya.");
  if(current==="support_messages")await supportPage();
 }
 
 /* NOTIFICATIONS */
-async function notificationsPage(){
- const version=pageVersion;
+async function notificationsPage(version=pageVersion){
  const r=await db.from("notifications").select("*")
   .order("created_at",{ascending:false}).limit(300);
  if(r.error)throw r.error;
- if(version!==pageVersion||current!=="notifications")return;
-
- const content=document.getElementById("content");
- if(!content)return;
-
- content.innerHTML=`
+ if(!pageIs("notifications",version))return;
+ putContent(`
  <h2>Notifications</h2>
  <p class="muted">Website notifications yahan show hongi.</p>
  <button class="gray" onclick="notificationsPage()">Refresh</button>
- <div class="panel">${renderSimple(r.data||[])}</div>`;
+ <div class="panel">${renderSimple(r.data||[])}</div>
+ `,"notifications",version);
 }
 
 /* CREDIT SCORE */
-async function creditPage(){
- const version=pageVersion;
+async function creditPage(version=pageVersion){
  await loadCustomers();
- if(version!==pageVersion||current!=="credit_score_history")return;
-
+ if(!pageIs("credit_score_history",version))return;
  const r=await db.from("credit_score_history").select("*")
   .order("created_at",{ascending:false}).limit(300);
  if(r.error)throw r.error;
- if(version!==pageVersion||current!=="credit_score_history")return;
-
- const content=document.getElementById("content");
- if(!content)return;
-
- content.innerHTML=`
+ if(!pageIs("credit_score_history",version))return;
+ putContent(`
  <h2>Credit Score History</h2>
  <div class="panel">
  <h3>Change Customer Credit Score</h3>
  <label>Customer</label>
- <select id="ccustomer">
- <option value="">Select customer</option>
+ <select id="ccustomer"><option value="">Select customer</option>
  ${customers.map(c=>`<option value="${esc(c.id)}">${esc(c.full_name||c.email||c.id)} — Current score: ${esc(c.credit_score??0)}</option>`).join("")}
  </select>
- <label>New Credit Score</label>
- <input id="newScore" type="number" min="0" max="1000">
- <label>Reason</label>
- <input id="scoreReason" placeholder="Reason for score change">
+ <label>New Credit Score</label><input id="newScore" type="number" min="0" max="1000">
+ <label>Reason</label><input id="scoreReason" placeholder="Reason for score change">
  <button class="green" onclick="saveCreditScore()">Save Credit Score</button>
  </div>
- <div class="panel">
- <h3>Credit Score History</h3>
- ${renderSimple(r.data||[])}
- </div>`;
+ <div class="panel"><h3>Credit Score History</h3>${renderSimple(r.data||[])}</div>
+ `,"credit_score_history",version);
 }
-
 async function saveCreditScore(){
- const cid=val("ccustomer");
- const score=Number(val("newScore"));
- const reason=val("scoreReason");
-
+ const cid=val("ccustomer"),score=Number(val("newScore")),reason=val("scoreReason");
  if(!cid||val("newScore")===""||!Number.isInteger(score)||score<0||score>1000)
   return note("Customer aur score 0 se 1000 ke darmiyan likhein.",true);
-
  const c=customers.find(x=>String(x.id)===String(cid));
  if(!c)return note("Customer nahi mila.",true);
-
  const oldScore=Number(c.credit_score||0);
-
- const update=await db.from("profiles").update({
-  credit_score:score
- }).eq("id",cid);
-
+ const update=await db.from("profiles").update({credit_score:score}).eq("id",cid);
  if(update.error)return note(update.error.message,true);
-
  const history=await db.from("credit_score_history").insert({
-  customer_id:cid,
-  old_score:oldScore,
-  new_score:score,
-  change_amount:score-oldScore,
-  reason:reason||"Admin adjustment"
+  customer_id:cid,old_score:oldScore,new_score:score,
+  change_amount:score-oldScore,reason:reason||"Admin adjustment"
  });
-
- if(history.error){
-  note("Score updated, lekin history save nahi hui: "+history.error.message,true);
- }else{
-  note("Credit score successfully updated.");
- }
+ if(history.error)note("Score updated, lekin history save nahi hui: "+history.error.message,true);
+ else note("Credit score successfully updated.");
  if(current==="credit_score_history")await creditPage();
 }
 
