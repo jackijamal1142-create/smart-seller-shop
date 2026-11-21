@@ -66,6 +66,26 @@ hr{border:0;border-top:1px solid var(--border);margin:18px 0}
 #profilePage{padding-bottom:20px}
 .kyc-lock-note{background:#fff7df;border:1px solid #f3d58a;color:#8a5b00;padding:13px;border-radius:12px;margin:10px 0 15px;font-size:13px;line-height:1.5}
 @media(min-width:600px){main{padding:22px}.product-image{height:230px}}
+.chat-screen{height:100dvh;display:flex;flex-direction:column;background:#f1f5f9;overflow:hidden}
+body.chat-open{padding:0;background:#f1f5f9}
+body.chat-open>header,body.chat-open #bottomNav{display:none!important}
+body.chat-open main{height:100dvh;max-width:650px;padding:0;margin:0 auto}
+.chat-topbar{height:66px;flex:0 0 66px;background:#14243d;color:white;display:flex;align-items:center;gap:13px;padding:0 14px;box-shadow:0 2px 8px #0002}
+.chat-topbar>div{display:flex;flex-direction:column;gap:3px;flex:1}
+.chat-topbar strong{font-size:16px}.chat-topbar small{font-size:11px;color:#cbd5e1}
+.chat-back{font-size:30px;background:transparent;padding:0;width:38px;color:white}
+.chat-online{width:9px;height:9px;border-radius:50%;background:#22c55e}
+.chat-scroll{flex:1;overflow-y:auto;padding:14px 12px 18px;display:flex;flex-direction:column;gap:8px}
+.chat-message,.chat-reply{max-width:82%;padding:10px 13px;border-radius:17px;margin:2px 0;box-shadow:0 1px 2px #0000000c}
+.chat-message{align-self:flex-end;background:#dbeafe;color:#172943;border-bottom-right-radius:5px}
+.chat-reply{align-self:flex-start;background:#fff;color:#172943;border:1px solid #e5eaf1;border-bottom-left-radius:5px}
+.chat-message strong,.chat-reply strong{display:none}
+.chat-message p,.chat-reply p{margin:0;white-space:pre-wrap;line-height:1.4}
+.chat-time{display:block;color:#718096;font-size:10px;margin-top:5px;text-align:right}
+.chat-composer{flex:0 0 auto;display:flex;align-items:flex-end;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid #e2e8f0}
+.chat-composer textarea{flex:1;min-height:42px;max-height:110px;resize:none;margin:0;border-radius:22px;padding:11px 15px;background:#f1f5f9;border:0}
+.chat-composer button{width:44px;height:44px;flex:0 0 44px;border-radius:50%;padding:0;font-size:20px}
+.chat-feedback{position:absolute;bottom:68px;left:0;right:0;margin:0;text-align:center;font-size:11px;pointer-events:none;color:#0b8b67}
 </style>
 </head>
 <body>
@@ -205,10 +225,11 @@ hr{border:0;border-top:1px solid var(--border);margin:18px 0}
   <div class="card"><h3>Withdrawal History</h3><div id="withdrawalHistory">Loading...</div><button class="full gray" onclick="loadWithdrawals()">Refresh History</button></div>
  </section>
 
- <section id="supportPage" class="page hidden">
-  <div class="page-title"><h2>Customer Service</h2><p class="muted">Yahan admin ko message bhejein aur unke replies dekhein.</p></div>
-  <div class="card"><h3>Send Message</h3><form id="supportForm"><textarea id="supportInput" placeholder="Write your message here..." required></textarea><button class="full" id="supportButton">Send Message</button></form><p id="supportMessage" class="message"></p></div>
-  <div class="card"><h3>My Messages</h3><div id="supportList">Loading messages...</div><button class="full gray" onclick="loadSupport()">Refresh Messages</button></div>
+ <section id="supportPage" class="page hidden chat-screen">
+  <div class="chat-topbar"><button type="button" class="chat-back" onclick="openPage('home')">‹</button><div><strong>Customer Service</strong><small>We are here to help</small></div><span class="chat-online"></span></div>
+  <div id="supportList" class="chat-scroll">Loading messages...</div>
+  <form id="supportForm" class="chat-composer"><textarea id="supportInput" placeholder="Type a message..." rows="1" required></textarea><button id="supportButton" aria-label="Send message">➤</button></form>
+  <p id="supportMessage" class="chat-feedback"></p>
  </section>
 
  <section id="profilePage" class="page hidden">
@@ -378,6 +399,7 @@ async function refreshCustomerBadges(){
 }
 
 window.openPage=function(page){
+ document.body.classList.toggle("chat-open",page==="support");
  ["home","products","orders","wallet","support","profile"].forEach(p=>$(p+"Page").classList.toggle("hidden",p!==page));
  document.querySelectorAll(".bottom-nav button").forEach(b=>b.classList.toggle("active",b.dataset.page===page));
  if(page==="home")loadHomeData();
@@ -813,7 +835,7 @@ window.loadSupport=async function(){
 
   data.forEach(m=>{
    const item=document.createElement("div");
-   item.className=m.sender==="admin"?"chat-reply":"chat-message";
+   item.className=(m.sender==="admin"?"chat-reply":"chat-message");
 
    const who=document.createElement("strong");
    who.textContent=m.sender==="admin"?"Customer Service - Admin":"You";
