@@ -55,6 +55,8 @@ button.link{background:none;color:var(--blue);padding:5px;width:auto}
 .message{text-align:center;color:#078b70;font-size:13px;overflow-wrap:anywhere}
 .chat-message,.chat-reply{padding:12px;border-radius:11px;margin:10px 0;overflow-wrap:anywhere}
 .chat-message{background:#eff6ff}.chat-reply{background:#dcfce7}
+.chat-message p,.chat-reply p{margin:7px 0}
+.chat-time{display:block;color:#718096;font-size:11px;margin-top:6px}
 hr{border:0;border-top:1px solid var(--border);margin:18px 0}
 .auth-wrap{max-width:430px;margin:35px auto}.auth-wrap .card{padding:22px}
 #profilePage{padding-bottom:20px}
@@ -703,41 +705,88 @@ $("kycForm").addEventListener("submit",async e=>{
  $("kycButton").disabled=false;
 });
 
+/* CUSTOMER SUPPORT CHAT - NEW SEPARATE MESSAGES */
 window.loadSupport=async function(){
  if(!currentUser)return;
- const box=$("supportList");box.textContent="Loading messages...";
+
+ const box=$("supportList");
+ box.textContent="Loading messages...";
+
  try{
-  const {data,error}=await db.from("support_messages").select("*").eq("customer_id",currentUser.id).order("created_at",{ascending:true});
+  const {data,error}=await db
+   .from("support_chat_messages")
+   .select("id,customer_id,sender,message,created_at")
+   .eq("customer_id",currentUser.id)
+   .order("created_at",{ascending:true});
+
   if(error)throw error;
-  if(!data?.length){box.textContent="No messages yet. Send a message to Customer Service.";return}
+
   box.innerHTML="";
+
+  if(!data||data.length===0){
+   box.textContent="No messages yet. Send a message to Customer Service.";
+   return;
+  }
+
   data.forEach(m=>{
-   const sent=document.createElement("div");sent.className="chat-message";
-   const own=document.createElement("strong");own.textContent="You";
-   const body=document.createElement("p");body.textContent=m.message||"";
-   sent.append(own,body);box.appendChild(sent);
-   if(m.reply){
-    const reply=document.createElement("div");reply.className="chat-reply";
-    const admin=document.createElement("strong");admin.textContent="Customer Service - Admin Reply";
-    const replyText=document.createElement("p");replyText.textContent=m.reply;
-    reply.append(admin,replyText);box.appendChild(reply);
-   }else{
-    const waiting=document.createElement("p");waiting.className="small";waiting.textContent="Waiting for Customer Service reply.";box.appendChild(waiting);
-   }
+   const item=document.createElement("div");
+   item.className=m.sender==="admin"?"chat-reply":"chat-message";
+
+   const who=document.createElement("strong");
+   who.textContent=m.sender==="admin"?"Customer Service - Admin":"You";
+
+   const body=document.createElement("p");
+   body.textContent=m.message||"";
+
+   const time=document.createElement("small");
+   time.className="chat-time";
+   time.textContent=m.created_at?new Date(m.created_at).toLocaleString():"";
+
+   item.append(who,body,time);
+   box.appendChild(item);
   });
- }catch(err){box.textContent="Customer Service error: "+err.message}
+
+  box.scrollTop=box.scrollHeight;
+
+ }catch(err){
+  box.textContent="Customer Service error: "+err.message;
+  console.error("Support chat:",err);
+ }
 };
 
 $("supportForm").addEventListener("submit",async e=>{
  e.preventDefault();
+
+ if(!currentUser)return;
  if(!requireKyc())return;
- const message=$("supportInput").value.trim();if(!message)return;
- $("supportButton").disabled=true;$("supportMessage").textContent="Sending message...";
+
+ const message=$("supportInput").value.trim();
+ if(!message)return;
+
+ $("supportButton").disabled=true;
+ $("supportMessage").textContent="Sending message...";
+
  try{
-  const {error}=await db.from("support_messages").insert({customer_id:currentUser.id,message,status:"open"});
+  const {error}=await db
+   .from("support_chat_messages")
+   .insert({
+    customer_id:currentUser.id,
+    sender:"customer",
+    message:message
+   });
+
   if(error)throw error;
-  $("supportInput").value="";$("supportMessage").textContent="Message sent to Customer Service.";await loadSupport();
- }catch(err){$("supportMessage").textContent="Message error: "+err.message}
+
+  $("supportInput").value="";
+  $("supportMessage").textContent="Message sent to Customer Service.";
+
+  await loadSupport();
+
+ }catch(err){
+  $("supportMessage").textContent="Message error: "+err.message;
+  console.error("Send support message:",err);
+ }
+
  $("supportButton").disabled=!isKycApproved;
 });
 
