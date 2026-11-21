@@ -1,3 +1,17 @@
+Bilkul. Ab aapka poora code update kar diya hai. Is mein:
+
+- Customer select karne par sirf usi customer ke orders show honge.
+- Available Balance sirf us customer ka show hoga.
+- Pending Orders Total bhi sirf usi customer ka hoga.
+- Orders List mein alag customer filter bhi hai.
+- Dono dropdown ek doosre ke saath connected hain.
+- `All Customers` select karne par sab customers ka record show hoga.
+- Order send karne ke baad selected customer change nahi hoga.
+
+**Purana Admin HTML poora delete karke neeche wala complete code paste karein.**
+
+```
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -112,6 +126,7 @@ let db=null,customers=[],products=[],current="dashboard";
 let pageVersion=0,profitEdited=false;
 let activeSupportCustomerId=null;
 let supportMessages=[];
+let orderCustomerFilterId="";
 
 try{
  if(!window.supabase)throw new Error("Supabase library load nahi hui.");
@@ -368,10 +383,15 @@ function calculateAvailableBalance(transactions){return calculateWalletSummary(t
 /* ORDERS */
 async function ordersPage(version=pageVersion){
  await Promise.all([loadCustomers(),loadProducts()]);if(!pageIs("orders",version))return;profitEdited=false;
+
  putContent(`
- <h2>Orders</h2><div class="panel"><h3>Send Order to Customer</h3>
- <label>Customer</label><select id="ocustomer"><option value="">Select customer</option>
- ${customers.map(c=>`<option value="${esc(c.id)}">${esc(c.full_name||c.email||c.id)} — ${esc(c.email||"")}</option>`).join("")}</select>
+ <h2>Orders</h2>
+ <div class="panel"><h3>Send Order to Customer</h3>
+ <label>Customer</label>
+ <select id="ocustomer" onchange="syncOrderCustomerFilter(this.value)">
+ <option value="">All Customers</option>
+ ${customers.map(c=>`<option value="${esc(c.id)}">${esc(c.full_name||c.email||c.id)} — ${esc(c.email||"")}</option>`).join("")}
+ </select>
  <label>Product</label><select id="oproduct" onchange="calcOrder(true)"><option value="">Select product</option>
  ${products.map(p=>`<option value="${esc(p.id)}">${esc(p.name)} — $${money(p.price)}</option>`).join("")}</select>
  <label>Quantity</label><input id="oqty" type="number" min="1" value="1" oninput="calcOrder()">
@@ -379,19 +399,60 @@ async function ordersPage(version=pageVersion){
  <input id="oprofit" type="number" min="0" step="0.01" value="0" oninput="profitEdited=true;calcOrder()">
  <div class="order-calculation"><p>Product Price <strong id="productPrice">$0.00</strong></p><p>Profit <strong id="profitDisplay">$0.00</strong></p><p>Expected Return <strong id="expectedReturn">$0.00</strong></p></div>
  <p class="muted">Profit automatically 20% calculate hoga. Admin manually change kar sakta hai.</p>
- <button class="green" id="sendOrderButton" onclick="sendOrder()">SEND ORDER</button></div>
- <div class="cards"><div class="stat">Pending Orders Total<strong id="pendingOrdersTotal">$0.00</strong><span class="muted">Sirf pending orders ki Product Price</span></div><div class="stat">Total Customer Available Balance<strong id="customerAvailableBalanceTotal">$0.00</strong><span class="muted">Customers ka current wallet balance</span></div></div>
- <div class="panel"><h3>Orders List</h3><button class="gray" onclick="loadOrders()">Refresh</button><div id="orderList"></div></div>`,"orders",version);
- calcOrder(true);await loadOrders();
+ <button class="green" id="sendOrderButton" onclick="sendOrder()">SEND ORDER</button>
+ </div>
+
+ <div class="cards">
+ <div class="stat">Pending Orders Total<strong id="pendingOrdersTotal">$0.00</strong><span class="muted">Selected customer ke pending orders ki Product Price</span></div>
+ <div class="stat">Customer Available Balance<strong id="customerAvailableBalanceTotal">$0.00</strong><span class="muted">Selected customer ka current wallet balance</span></div>
+ </div>
+
+ <div class="panel">
+ <h3>Orders List</h3>
+ <label>Filter Orders by Customer</label>
+ <select id="orderCustomerFilter" onchange="applyOrderCustomerFilter(this.value)">
+ <option value="">All Customers</option>
+ ${customers.map(c=>`<option value="${esc(c.id)}">${esc(c.full_name||c.email||c.id)} — ${esc(c.email||"")}</option>`).join("")}
+ </select>
+ <button class="gray" onclick="loadOrders()">Refresh</button>
+ <div id="orderList"></div>
+ </div>`,"orders",version);
+
+ const customerSelect=document.getElementById("ocustomer");
+ const filterSelect=document.getElementById("orderCustomerFilter");
+ if(customerSelect)customerSelect.value=orderCustomerFilterId;
+ if(filterSelect)filterSelect.value=orderCustomerFilterId;
+
+ calcOrder(true);
+ await loadOrders();
 }
+
+function syncOrderCustomerFilter(id){
+ orderCustomerFilterId=String(id||"");
+ const filter=document.getElementById("orderCustomerFilter");
+ if(filter)filter.value=orderCustomerFilterId;
+ loadOrders();
+}
+
+function applyOrderCustomerFilter(id){
+ orderCustomerFilterId=String(id||"");
+ const customer=document.getElementById("ocustomer");
+ if(customer)customer.value=orderCustomerFilterId;
+ const filter=document.getElementById("orderCustomerFilter");
+ if(filter)filter.value=orderCustomerFilterId;
+ loadOrders();
+}
+
 function calcOrder(resetProfit=false){
  const p=products.find(x=>String(x.id)===val("oproduct")),qty=Number(val("oqty")),validQty=Number.isInteger(qty)&&qty>0?qty:0,productPrice=Number(p?.price||0)*validQty,profitInput=document.getElementById("oprofit");
- if(!profitInput)return;if(resetProfit||!profitEdited)profitInput.value=money(productPrice*.20);
+ if(!profitInput)return;
+ if(resetProfit||!profitEdited)profitInput.value=money(productPrice*.20);
  const profit=Number(profitInput.value||0);
  document.getElementById("productPrice").textContent="$"+money(productPrice);
  document.getElementById("profitDisplay").textContent="$"+money(profit);
  document.getElementById("expectedReturn").textContent="$"+money(productPrice+profit);
 }
+
 async function sendOrder(){
  const cid=val("ocustomer"),pid=val("oproduct"),qty=Number(val("oqty")),p=products.find(x=>String(x.id)===pid);
  if(!cid||!p||!Number.isInteger(qty)||qty<1)return note("Customer, product aur quantity select karein.",true);
@@ -403,11 +464,18 @@ async function sendOrder(){
   if(o.error)throw o.error;
   const it=await db.from("order_items").insert({order_id:o.data.id,product_id:p.id,product_name:p.name,quantity:qty,unit_price:unitPrice});
   if(it.error){await db.from("orders").delete().eq("id",o.data.id);throw it.error}
+  orderCustomerFilterId=String(cid);
+  const filter=document.getElementById("orderCustomerFilter");
+  if(filter)filter.value=orderCustomerFilterId;
   note("Order sent. Product Price: $"+money(total)+" | Profit: $"+money(profit)+" | Expected Return: $"+money(total+profit));
-  document.getElementById("oproduct").value="";document.getElementById("oqty").value="1";profitEdited=false;calcOrder(true);
+  document.getElementById("oproduct").value="";
+  document.getElementById("oqty").value="1";
+  profitEdited=false;calcOrder(true);
   if(current==="orders")await loadOrders();
- }catch(e){note("Order save error: "+e.message,true)}finally{const btn=document.getElementById("sendOrderButton");if(btn)btn.disabled=false}
+ }catch(e){note("Order save error: "+e.message,true)}
+ finally{const btn=document.getElementById("sendOrderButton");if(btn)btn.disabled=false}
 }
+
 async function creditCompletedOrder(orderId){
  const orderResult=await db.from("orders").select("*").eq("id",orderId).single();if(orderResult.error)throw orderResult.error;
  const order=orderResult.data;if(String(order.status).toLowerCase()!=="completed")return;
@@ -427,56 +495,153 @@ async function creditCompletedOrder(orderId){
   if(result.error)throw result.error;
  }
 }
+
 async function loadOrders(){
- const version=pageVersion;if(current!=="orders")return;
- const target=document.getElementById("orderList");if(!target||!target.isConnected)return;
+ const version=pageVersion;
+ if(current!=="orders")return;
+
+ const target=document.getElementById("orderList");
+ if(!target||!target.isConnected)return;
+
+ const selectedCustomer=String(orderCustomerFilterId||"");
+
  const r=await db.from("orders").select("*").order("created_at",{ascending:false}).limit(300);
  if(r.error){if(pageIs("orders",version))note(r.error.message,true);return}
- const rows=r.data||[];
- for(const order of rows){
+
+ const allRows=r.data||[];
+
+ // Completed orders ki wallet processing tamam records par hogi
+ for(const order of allRows){
   if(!pageIs("orders",version))return;
   if(String(order.status).toLowerCase()==="completed"){
-   try{await creditCompletedOrder(order.id)}catch(e){console.error("Wallet credit error:",order.id,e.message);if(pageIs("orders",version))note("Wallet credit error: "+e.message,true)}
+   try{
+    await creditCompletedOrder(order.id);
+   }catch(e){
+    console.error("Wallet credit error:",order.id,e.message);
+    if(pageIs("orders",version))note("Wallet credit error: "+e.message,true);
+   }
   }
  }
- if(!pageIs("orders",version))return;await loadCustomers();if(!pageIs("orders",version))return;
+
+ if(!pageIs("orders",version))return;
+ await loadCustomers();
+ if(!pageIs("orders",version))return;
+
  let items=[];
- if(rows.length){
-  const ir=await db.from("order_items").select("*").in("order_id",rows.map(x=>x.id));
+ if(allRows.length){
+  const ir=await db.from("order_items").select("*").in("order_id",allRows.map(x=>x.id));
   if(ir.error){if(pageIs("orders",version))note("Order items load error: "+ir.error.message,true);return}
   items=ir.data||[];
  }
+
  if(!pageIs("orders",version))return;
- const walletResult=await db.from("wallet_transactions").select("customer_id,amount,transaction_type,status").limit(5000);
- if(!pageIs("orders",version))return;if(walletResult.error){note("Wallet balance load error: "+walletResult.error.message,true);return}
+
+ const walletResult=await db.from("wallet_transactions")
+  .select("customer_id,amount,transaction_type,status").limit(5000);
+
+ if(!pageIs("orders",version))return;
+ if(walletResult.error){note("Wallet balance load error: "+walletResult.error.message,true);return}
+
  const transactionsByCustomer={};
- (walletResult.data||[]).forEach(x=>{const cid=String(x.customer_id);(transactionsByCustomer[cid]??=[]).push(x)});
- const balanceByCustomer={};let totalCustomerAvailableBalance=0;
- customers.forEach(c=>{const cid=String(c.id),balance=calculateAvailableBalance(transactionsByCustomer[cid]||[]);balanceByCustomer[cid]=balance;totalCustomerAvailableBalance+=balance});
- Object.keys(transactionsByCustomer).forEach(cid=>{if(Object.prototype.hasOwnProperty.call(balanceByCustomer,cid))return;const balance=calculateAvailableBalance(transactionsByCustomer[cid]);balanceByCustomer[cid]=balance;totalCustomerAvailableBalance+=balance});
+ (walletResult.data||[]).forEach(x=>{
+  const cid=String(x.customer_id);
+  (transactionsByCustomer[cid]??=[]).push(x);
+ });
+
+ const balanceByCustomer={};
+ let totalCustomerAvailableBalance=0;
+
+ customers.forEach(c=>{
+  const cid=String(c.id);
+  const balance=calculateAvailableBalance(transactionsByCustomer[cid]||[]);
+  balanceByCustomer[cid]=balance;
+  totalCustomerAvailableBalance+=balance;
+ });
+
+ Object.keys(transactionsByCustomer).forEach(cid=>{
+  if(Object.prototype.hasOwnProperty.call(balanceByCustomer,cid))return;
+  const balance=calculateAvailableBalance(transactionsByCustomer[cid]);
+  balanceByCustomer[cid]=balance;
+  totalCustomerAvailableBalance+=balance;
+ });
+
+ // Sirf selected customer ke orders display honge
+ const visibleRows=selectedCustomer
+  ?allRows.filter(x=>String(x.customer_id)===selectedCustomer)
+  :allRows;
+
+ const visibleOrderIds=new Set(visibleRows.map(x=>String(x.id)));
+ const visibleItems=items.filter(i=>visibleOrderIds.has(String(i.order_id)));
+
  let pendingTotal=0;
- rows.forEach(x=>{
+
+ visibleRows.forEach(x=>{
   if(String(x.status||"").toLowerCase().trim()!=="pending")return;
-  const orderItems=items.filter(i=>String(i.order_id)===String(x.id));
+  const orderItems=visibleItems.filter(i=>String(i.order_id)===String(x.id));
   const itemTotal=orderItems.reduce((sum,i)=>sum+Number(i.unit_price||0)*Number(i.quantity||0),0);
   const productPrice=orderItems.length?itemTotal:Number(x.total_amount??x.product_price??0);
   if(Number.isFinite(productPrice))pendingTotal+=productPrice;
  });
- document.getElementById("pendingOrdersTotal").textContent="$"+money(pendingTotal);
- document.getElementById("customerAvailableBalanceTotal").textContent="$"+money(totalCustomerAvailableBalance);
+
+ const selectedBalance=selectedCustomer
+  ?(balanceByCustomer[selectedCustomer]||0)
+  :totalCustomerAvailableBalance;
+
+ const pendingElement=document.getElementById("pendingOrdersTotal");
+ const balanceElement=document.getElementById("customerAvailableBalanceTotal");
+
+ if(pendingElement)pendingElement.textContent="$"+money(pendingTotal);
+ if(balanceElement)balanceElement.textContent="$"+money(selectedBalance);
+
  if(!pageIs("orders",version))return;
- const list=document.getElementById("orderList");if(!list||!list.isConnected)return;
- const orderStatuses=[["pending","Pending"],["processing","Processing"],["shipping","Shipping"],["completed","Complete"],["cancelled","Cancel"]];
- list.innerHTML=rows.length?"<div class='tablewrap'><table><tr><th>Customer</th><th>Customer Available Balance</th><th>Order ID</th><th>Product / Quantity</th><th>Product Price</th><th>Profit</th><th>Expected Return</th><th>Status</th><th>Update</th></tr>"+
- rows.map(x=>{
-  const orderItems=items.filter(i=>String(i.order_id)===String(x.id));
+
+ const list=document.getElementById("orderList");
+ if(!list||!list.isConnected)return;
+
+ const orderStatuses=[
+  ["pending","Pending"],
+  ["processing","Processing"],
+  ["shipping","Shipping"],
+  ["completed","Complete"],
+  ["cancelled","Cancel"]
+ ];
+
+ list.innerHTML=visibleRows.length
+ ?"<div class='tablewrap'><table><tr><th>Customer</th><th>Customer Available Balance</th><th>Order ID</th><th>Product / Quantity</th><th>Product Price</th><th>Profit</th><th>Expected Return</th><th>Status</th><th>Update</th></tr>"+
+ visibleRows.map(x=>{
+  const orderItems=visibleItems.filter(i=>String(i.order_id)===String(x.id));
   const itemTotal=orderItems.reduce((sum,i)=>sum+Number(i.unit_price||0)*Number(i.quantity||0),0);
-  const productPrice=orderItems.length?itemTotal:Number(x.total_amount??x.product_price??0),profit=Number(x.admin_profit||0),customerAvailableBalance=balanceByCustomer[String(x.customer_id)]||0;
-  const itemText=orderItems.length?orderItems.map(i=>`<div><b>${esc(i.product_name||"Product")}</b><br>Quantity: ${esc(i.quantity)}<br>Unit Price: $${money(i.unit_price)}</div>`).join("<hr>"):"Product details unavailable";
+  const productPrice=orderItems.length?itemTotal:Number(x.total_amount??x.product_price??0);
+  const profit=Number(x.admin_profit||0);
+  const customerAvailableBalance=balanceByCustomer[String(x.customer_id)]||0;
+  const itemText=orderItems.length
+   ?orderItems.map(i=>`<div><b>${esc(i.product_name||"Product")}</b><br>Quantity: ${esc(i.quantity)}<br>Unit Price: $${money(i.unit_price)}</div>`).join("<hr>")
+   :"Product details unavailable";
   const currentStatus=String(x.status||"").toLowerCase().trim();
-  return `<tr><td>${customerLink(x.customer_id)}<p><button onclick="openCustomerProfile('${esc(x.customer_id)}')">View Full Details</button></p></td><td><b>$${money(customerAvailableBalance)}</b></td><td>${esc(x.id)}</td><td>${itemText}</td><td>$${money(productPrice)}</td><td>$${money(profit)}</td><td><b>$${money(productPrice+profit)}</b></td><td><b>${esc(x.status)}</b></td><td><select id="orderstatus_${esc(x.id)}">${orderStatuses.map(([value,label])=>`<option value="${value}" ${currentStatus===value?"selected":""}>${label}</option>`).join("")}${!orderStatuses.some(([value])=>value===currentStatus)?`<option value="${esc(currentStatus)}" selected>${esc(x.status)} (Old Status)</option>`:""}</select><button onclick="updateOrder('${esc(x.id)}')">Save</button></td></tr>`;
- }).join("")+"</table></div>":"No orders found.";
+
+  return `<tr>
+   <td>${customerLink(x.customer_id)}
+    <p><button onclick="openCustomerProfile('${esc(x.customer_id)}')">View Full Details</button></p>
+   </td>
+   <td><b>$${money(customerAvailableBalance)}</b></td>
+   <td>${esc(x.id)}</td>
+   <td>${itemText}</td>
+   <td>$${money(productPrice)}</td>
+   <td>$${money(profit)}</td>
+   <td><b>$${money(productPrice+profit)}</b></td>
+   <td><b>${esc(x.status)}</b></td>
+   <td>
+    <select id="orderstatus_${esc(x.id)}">
+     ${orderStatuses.map(([value,label])=>`<option value="${value}" ${currentStatus===value?"selected":""}>${label}</option>`).join("")}
+     ${!orderStatuses.some(([value])=>value===currentStatus)?`<option value="${esc(currentStatus)}" selected>${esc(x.status)} (Old Status)</option>`:""}
+    </select>
+    <button onclick="updateOrder('${esc(x.id)}')">Save</button>
+   </td>
+  </tr>`;
+ }).join("")+"</table></div>"
+ :"No orders found for this customer.";
 }
+
 async function updateOrder(id){
  const select=document.getElementById("orderstatus_"+id);if(!select)return note("Order status select nahi mila.",true);
  const status=select.value;if(!["pending","processing","shipping","completed","cancelled"].includes(status))return note("Invalid order status.",true);
@@ -485,7 +650,8 @@ async function updateOrder(id){
   const r=await db.from("orders").update({status}).eq("id",id).select("*").single();if(r.error)throw r.error;
   if(status==="completed"){await creditCompletedOrder(id);note("Order completed. Wallet credit check ho gaya.")}else note("Order successfully "+status+" ho gaya.");
   if(current==="orders")await loadOrders();
- }catch(e){note("Order save error: "+e.message,true)}finally{const s=document.getElementById("orderstatus_"+id);if(s)s.disabled=false}
+ }catch(e){note("Order save error: "+e.message,true)}
+ finally{const s=document.getElementById("orderstatus_"+id);if(s)s.disabled=false}
 }
 
 /* WALLET MANAGEMENT */
@@ -689,3 +855,7 @@ check();
 </script>
 </body>
 </html>
+
+```
+
+**Bas itna karein:** GitHub mein Admin HTML file khol kar purana code hata dein, ye poora code paste karein aur Commit changes kar dein.
