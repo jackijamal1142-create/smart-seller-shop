@@ -55,7 +55,7 @@ button.link{background:none;color:var(--blue);padding:5px;width:auto}
 .success-note{background:#dcfce7;color:#166534;border-radius:10px;padding:12px;font-size:13px;text-align:left}
 .bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:50;background:white;border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(5,1fr);padding:7px 3px calc(7px + env(safe-area-inset-bottom));box-shadow:0 -4px 18px #15284b12}
 .bottom-nav button{background:transparent;color:#748198;margin:0;padding:6px 1px;border-radius:8px;font-size:11px}
-.bottom-nav button.active{color:var(--blue);background:#eef2ff}.bottom-nav span{display:block;font-size:21px;margin-bottom:4px}
+.bottom-nav button.active{color:var(--blue);background:#eef2ff}.bottom-nav span{display:block;font-size:21px;margin-bottom:4px}.nav-count{display:block;font-size:9px;line-height:1.2;color:#d92d45;font-weight:bold;min-height:11px;margin-top:3px}
 .message{text-align:center;color:#078b70;font-size:13px;overflow-wrap:anywhere}
 .chat-message,.chat-reply{padding:12px;border-radius:11px;margin:10px 0;overflow-wrap:anywhere}
 .chat-message{background:#eff6ff}.chat-reply{background:#dcfce7}
@@ -222,9 +222,9 @@ hr{border:0;border-top:1px solid var(--border);margin:18px 0}
 <nav id="bottomNav" class="bottom-nav hidden">
  <button class="active" data-page="home" onclick="openPage('home')"><span>⌂</span>Dashboard</button>
  <button data-page="products" onclick="openPage('products')"><span>▣</span>Products</button>
- <button data-page="orders" onclick="openPage('orders')"><span>🛒</span>Orders</button>
+ <button data-page="orders" onclick="openPage('orders')"><span>🛒</span>Orders<small id="customerOrdersBadge" class="nav-count hidden"></small></button>
  <button data-page="wallet" onclick="openPage('wallet')"><span>▰</span>Wallet</button>
- <button data-page="support" onclick="openPage('support')"><span>🎧</span>Support</button>
+ <button data-page="support" onclick="openPage('support')"><span>🎧</span>Support<small id="customerMessagesBadge" class="nav-count hidden"></small></button>
 </nav>
 
 <script>
@@ -233,6 +233,7 @@ const SUPABASE_KEY="sb_publishable_QrBZWYfua111aN24MjlXHw_c-Cf5yB1";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=id=>document.getElementById(id);
 let currentUser=null,cachedOrders=[],cachedProducts=[];
+let customerBadgeTimer=null;
 let isKycApproved=false;
 
 function msg(t){$("message").textContent=t}
@@ -326,6 +327,7 @@ $("newPasswordForm").addEventListener("submit",async e=>{
 async function loadDashboard(user){
  currentUser=user;
  isKycApproved=false;
+ initCustomerBadgeTracking();
  $("authArea").classList.add("hidden");
  $("dashboard").classList.remove("hidden");
  $("bottomNav").classList.remove("hidden");
@@ -337,14 +339,39 @@ async function loadDashboard(user){
  openPage("home");
 }
 
+function customerBadgeKey(kind){return "smartSeller_"+kind+"_seen_"+currentUser.id}
+function initCustomerBadgeTracking(){
+ if(!currentUser)return;
+ ["orders","messages"].forEach(kind=>{const key=customerBadgeKey(kind);if(!localStorage.getItem(key))localStorage.setItem(key,new Date().toISOString())});
+ refreshCustomerBadges();
+ if(customerBadgeTimer)clearInterval(customerBadgeTimer);
+ customerBadgeTimer=setInterval(refreshCustomerBadges,15000);
+}
+function markCustomerBadgeSeen(kind){if(!currentUser)return;localStorage.setItem(customerBadgeKey(kind),new Date().toISOString());refreshCustomerBadges()}
+async function refreshCustomerBadges(){
+ if(!currentUser)return;
+ try{
+  const orderSince=localStorage.getItem(customerBadgeKey("orders"))||new Date().toISOString();
+  const messageSince=localStorage.getItem(customerBadgeKey("messages"))||new Date().toISOString();
+  const results=await Promise.all([
+   db.from("orders").select("id,created_at").eq("customer_id",currentUser.id).gt("created_at",orderSince),
+   db.from("support_chat_messages").select("id,created_at").eq("customer_id",currentUser.id).eq("sender","admin").gt("created_at",messageSince)
+  ]);
+  if(results[0].error)throw results[0].error;if(results[1].error)throw results[1].error;
+  const put=(id,n,label)=>{const el=$(id);if(!el)return;el.textContent=n?n+" New "+label+(n===1?"":"s"):"";el.classList.toggle("hidden",!n)};
+  put("customerOrdersBadge",results[0].data?.length||0,"Order");
+  put("customerMessagesBadge",results[1].data?.length||0,"Message");
+ }catch(e){console.warn("Notification badge:",e.message)}
+}
+
 window.openPage=function(page){
  ["home","products","orders","wallet","support","profile"].forEach(p=>$(p+"Page").classList.toggle("hidden",p!==page));
  document.querySelectorAll(".bottom-nav button").forEach(b=>b.classList.toggle("active",b.dataset.page===page));
  if(page==="home")loadHomeData();
  if(page==="products")showProductTab("shop");
- if(page==="orders")loadOrders();
+ if(page==="orders"){markCustomerBadgeSeen("orders");loadOrders();}
  if(page==="wallet"){loadWallet();loadWithdrawals();resetWithdrawScreen()}
- if(page==="support")loadSupport();
+ if(page==="support"){markCustomerBadgeSeen("messages");loadSupport();}
  if(page==="profile")loadProfile().then(()=>loadKyc(currentUser));
 };
 
@@ -847,6 +874,7 @@ db.auth.onAuthStateChange((event,session)=>{
 
 setInterval(()=>{
  if(currentUser&&$("ordersList"))loadOrders();
+ if(currentUser)refreshCustomerBadges();
 },15000);
 
 (async()=>{
