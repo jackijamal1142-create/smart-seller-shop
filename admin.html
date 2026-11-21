@@ -834,36 +834,87 @@ async function withdrawStatus(id,status){
  }
 }
 
-/* KYC */
+/* KYC - ONE-TIME APPROVE / REJECT */
 async function kycPage(version=pageVersion){
  await loadCustomers();
  if(!pageIs("kyc_submissions",version))return;
+
  const r=await db.from("kyc_submissions").select("*")
   .order("created_at",{ascending:false}).limit(300);
+
  if(r.error)throw r.error;
  if(!pageIs("kyc_submissions",version))return;
+
  putContent(`
  <h2>KYC Requests</h2>
  <button class="gray" onclick="kycPage()">Refresh</button>
  <div id="kycList"></div>
  `,"kyc_submissions",version);
+
  const target=document.getElementById("kycList");
  if(!target)return;
- target.innerHTML=(r.data||[]).map(x=>`
- <div class="panel">
- <b>${esc(customerName(x.customer_id))}</b>
- <p>Gmail: ${esc(customerEmail(x.customer_id))}</p>
- <p>Document: ${esc(x.document_type)} | Status: ${esc(x.status)}</p>
- <p><a href="${esc(x.document_url)}" target="_blank" rel="noopener">Open KYC Document</a></p>
- <button class="green" onclick="kycStatus('${esc(x.id)}','approved')">Approve</button>
- <button class="red" onclick="kycStatus('${esc(x.id)}','rejected')">Reject</button>
- </div>`).join("")||"No KYC requests.";
+
+ target.innerHTML=(r.data||[]).map(x=>{
+  const pending=String(x.status||"").toLowerCase().trim()==="pending";
+
+  return `
+  <div class="panel">
+   <b>${esc(customerName(x.customer_id))}</b>
+   <p>Gmail: ${esc(customerEmail(x.customer_id))}</p>
+   <p>Document: ${esc(x.document_type)} | Status: <b>${esc(x.status)}</b></p>
+   <p><a href="${esc(x.document_url)}" target="_blank" rel="noopener">Open KYC Document</a></p>
+
+   ${pending?`
+    <button class="green"
+     onclick="kycStatus('${esc(x.id)}','approved')">
+     Approve
+    </button>
+    <button class="red"
+     onclick="kycStatus('${esc(x.id)}','rejected')">
+     Reject
+    </button>
+   `:`
+    <p class="muted">Decision already made. No further action allowed.</p>
+   `}
+  </div>`;
+ }).join("")||"No KYC requests.";
 }
+
+/* KYC STATUS - ONE-TIME DECISION */
 async function kycStatus(id,status){
- const r=await db.from("kyc_submissions").update({status}).eq("id",id);
- if(r.error)return note(r.error.message,true);
- note("KYC updated.");
- if(current==="kyc_submissions")await kycPage();
+ if(!["approved","rejected"].includes(status))
+  return note("Invalid KYC status.",true);
+
+ const action=status==="approved"?"APPROVE":"REJECT";
+
+ if(!confirm("Are you sure you want to "+action+" this KYC request?"))
+  return;
+
+ try{
+  const r=await db.from("kyc_submissions")
+   .update({status:status})
+   .eq("id",id)
+   .ilike("status","pending")
+   .select("id")
+   .maybeSingle();
+
+  if(r.error)throw r.error;
+
+  if(!r.data){
+   note("This KYC request has already been processed. No changes made.",true);
+   if(current==="kyc_submissions")await kycPage();
+   return;
+  }
+
+  note(status==="approved"
+   ?"KYC approved successfully."
+   :"KYC rejected successfully.");
+
+  if(current==="kyc_submissions")await kycPage();
+
+ }catch(e){
+  note("KYC update error: "+e.message,true);
+ }
 }
 
 /* CUSTOMER SERVICE */
