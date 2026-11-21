@@ -281,11 +281,15 @@ button,input,select,textarea{font-size:14px}
 
  <section id="profilePage" class="page hidden">
   <div class="page-title"><h2>My Profile</h2><p class="muted">Your account and verification details.</p></div>
-  <div class="card">
-   <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
+  <div class="card" onclick="toggleProfileEdit()" style="cursor:pointer">
+   <div style="display:flex;align-items:center;gap:14px;margin-bottom:8px">
     <img id="profileAvatar" src="" alt="Profile photo" style="width:76px;height:76px;border-radius:50%;object-fit:cover;background:#e6efff">
-    <div><strong id="profileName">-</strong><p class="muted" id="profileEmail">-</p><p class="muted">Phone: <span id="profilePhone">-</span></p></div>
+    <div><strong id="profileName">-</strong><p class="muted" id="profileEmail">-</p><p class="muted">Phone: <span id="profilePhone">-</span></p><small class="muted">Tap Profile to edit</small></div>
    </div>
+   <p><strong>Credit Score:</strong> <span id="profileCredit">-</span></p>
+  </div>
+  <div id="profileEditCard" class="card hidden">
+   <h3>Edit Profile</h3>
    <form id="profileUpdateForm">
     <label for="profilePhoto"><strong>Profile Picture</strong></label>
     <input id="profilePhoto" type="file" accept="image/*">
@@ -296,7 +300,6 @@ button,input,select,textarea{font-size:14px}
     <button class="full" id="saveProfileButton">Save Profile</button>
     <p id="profileUpdateMessage" class="message"></p>
    </form>
-   <p><strong>Credit Score:</strong> <span id="profileCredit">-</span></p>
   </div>
   <div class="card"><h3>KYC Verification</h3><div id="verificationStatus" class="status pending">Verification pending</div><div id="kycSection"><p class="muted">Please submit your identity document.</p><form id="kycForm"><select id="documentType" required><option value="">Select Document</option><option value="Passport">Passport</option><option value="National ID">National ID</option><option value="Driving Licence">Driving Licence</option></select><input id="kycFile" type="file" accept="image/*,.pdf" required><button class="full" id="kycButton">Submit KYC</button></form><p id="kycStatus" class="message"></p></div></div>
   <button class="full gray" onclick="logout()">Logout</button>
@@ -341,6 +344,10 @@ function updateKycLocks(){
  });
 }
 
+window.toggleProfileEdit=function(){
+ const card=$("profileEditCard");
+ if(card)card.classList.toggle("hidden");
+};
 function hideAuthForms(){["loginForm","registerForm","forgotForm","newPasswordForm"].forEach(id=>$(id).classList.add("hidden"))}
 
 window.showLogin=function(){hideAuthForms();$("loginForm").classList.remove("hidden");$("loginTab").classList.add("active");$("registerTab").classList.remove("active");msg("")}
