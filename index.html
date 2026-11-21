@@ -858,12 +858,12 @@ async function loadProfile(){
   if(error)throw error;
   if(data){
    const score=Number(data.credit_score||0);
-    const scorePercent=Math.max(0,Math.min(100,Math.round(score/10)));
+    const scorePercent=Math.max(0,Math.min(100,Math.round(score)));
    $("profileName").textContent=data.full_name||currentUser.user_metadata?.full_name||"-";
    $("editFullName").value=data.full_name||currentUser.user_metadata?.full_name||"";
    $("editPhone").value=data.phone||currentUser.user_metadata?.phone||"";
    avatarUrl=data.avatar||"";
-   $("profileCredit").textContent=safeText(data.credit_score);
+   $("profileCredit").textContent=scorePercent+"%";
    $("homeCredit").textContent=scorePercent+"%";
    $("scoreDisplay").textContent=scorePercent+"%";
    $("scoreFill").style.width=scorePercent+"%";
