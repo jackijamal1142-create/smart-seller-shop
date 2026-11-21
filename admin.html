@@ -104,9 +104,7 @@ try{
  document.getElementById("loginError").textContent=e.message;
 }
 
-function val(id){
- return document.getElementById(id)?.value?.trim()||"";
-}
+function val(id){return document.getElementById(id)?.value?.trim()||""}
 function esc(v){
  return String(v??"").replace(/[&<>"']/g,c=>({
  "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
@@ -120,9 +118,7 @@ function note(t,bad=false){
 }
 function money(v){return Number(v||0).toFixed(2)}
 function imageOf(p){return p?.image_url||p?.image||""}
-function pageIs(page,version){
- return current===page&&pageVersion===version;
-}
+function pageIs(page,version){return current===page&&pageVersion===version}
 function putContent(html,page=current,version=pageVersion){
  if(!pageIs(page,version))return false;
  const el=document.getElementById("content");
@@ -138,8 +134,7 @@ async function login(){
  document.getElementById("loginError").textContent="";
  try{
   const {data,error}=await db.auth.signInWithPassword({
-   email:val("email"),
-   password:document.getElementById("password").value
+   email:val("email"),password:document.getElementById("password").value
   });
   if(error)throw error;
   const a=await db.from("admin_users").select("user_id")
@@ -152,22 +147,17 @@ async function login(){
   await start();
  }catch(e){
   document.getElementById("loginError").textContent=e.message;
- }finally{
-  b.disabled=false;
- }
+ }finally{b.disabled=false}
 }
-
 async function logout(){
  if(db)await db.auth.signOut();
  location.reload();
 }
-
 async function start(){
  document.getElementById("login").style.display="none";
  document.getElementById("layout").style.display="flex";
  await go("dashboard",document.querySelector("aside button"));
 }
-
 async function check(){
  if(!db)return;
  try{
@@ -178,11 +168,8 @@ async function check(){
   if(a.error)throw a.error;
   if(a.data)await start();
   else await db.auth.signOut();
- }catch(e){
-  document.getElementById("loginError").textContent=e.message;
- }
+ }catch(e){document.getElementById("loginError").textContent=e.message}
 }
-
 async function loadCustomers(){
  const r=await db.from("profiles").select("*").limit(1000);
  if(r.error)throw r.error;
@@ -228,9 +215,7 @@ async function go(page,btn){
   if(page==="support_messages")return await supportPage(version);
   if(page==="notifications")return await notificationsPage(version);
   if(page==="credit_score_history")return await creditPage(version);
- }catch(e){
-  if(pageIs(page,version))note(e.message,true);
- }
+ }catch(e){if(pageIs(page,version))note(e.message,true)}
 }
 
 /* DASHBOARD */
@@ -266,7 +251,7 @@ function previewProductImage(){
  const file=document.getElementById("pimagefile")?.files?.[0];
  const preview=document.getElementById("imagePreview");
  if(!preview)return;
- if(!file){preview.style.display="none";return;}
+ if(!file){preview.style.display="none";return}
  preview.src=URL.createObjectURL(file);
  preview.style.display="block";
 }
@@ -410,6 +395,54 @@ function showCustomerProducts(id){
  `,"customer_products",pageVersion);
 }
 
+/* WALLET CALCULATION — CUSTOMER PANEL KE BILKUL SAME RULES */
+function calculateWalletSummary(transactions,orders){
+ let available=0,profit=0,applied=0;
+
+ (transactions||[]).forEach(t=>{
+  const type=String(t.transaction_type||"").toLowerCase().trim();
+  const status=String(t.status||"").toLowerCase().trim();
+  const amount=Math.abs(Number(t.amount)||0);
+
+  if(!["approved","completed","success","successful","paid"].includes(status))return;
+
+  if(type==="profit"){
+   profit+=amount;
+   available+=amount;
+  }else if(type==="purchase"||type==="applied"){
+   available-=amount;
+  }else if(type==="refund"){
+   available+=amount;
+  }else if(type==="withdrawal"||type.includes("minus")||
+           type.includes("debit")||type.includes("payment")){
+   available-=amount;
+  }else if(type.includes("add_balance")||type==="credit"||
+           type==="deposit"||type==="income"||type==="add balance"){
+   available+=amount;
+  }
+ });
+
+ (orders||[]).forEach(o=>{
+  const status=String(o.status||"").toLowerCase().trim();
+  const pickedUpStatuses=["processing","shipped","picked_up","picked up","in_progress"];
+  if(pickedUpStatuses.includes(status)){
+   const amount=Number(o.total_amount??o.product_price??0);
+   if(Number.isFinite(amount)&&amount>0)applied+=amount;
+  }
+ });
+
+ return {
+  available:Math.max(0,available),
+  profit:Math.max(0,profit),
+  applied:Math.max(0,applied)
+ };
+}
+
+/* Same available balance formula for customer rows in Orders page */
+function calculateAvailableBalance(transactions){
+ return calculateWalletSummary(transactions,[]).available;
+}
+
 /* ORDERS */
 async function ordersPage(version=pageVersion){
  await Promise.all([loadCustomers(),loadProducts()]);
@@ -463,7 +496,6 @@ async function ordersPage(version=pageVersion){
  calcOrder(true);
  await loadOrders();
 }
-
 function calcOrder(resetProfit=false){
  const p=products.find(x=>String(x.id)===val("oproduct"));
  const qty=Number(val("oqty"));
@@ -471,72 +503,53 @@ function calcOrder(resetProfit=false){
  const productPrice=Number(p?.price||0)*validQty;
  const profitInput=document.getElementById("oprofit");
  if(!profitInput)return;
-
- if(resetProfit||!profitEdited)
-  profitInput.value=money(productPrice*.20);
-
+ if(resetProfit||!profitEdited)profitInput.value=money(productPrice*.20);
  const profit=Number(profitInput.value||0);
  const priceEl=document.getElementById("productPrice");
  const profitEl=document.getElementById("profitDisplay");
  const returnEl=document.getElementById("expectedReturn");
-
  if(priceEl)priceEl.textContent="$"+money(productPrice);
  if(profitEl)profitEl.textContent="$"+money(profit);
  if(returnEl)returnEl.textContent="$"+money(productPrice+profit);
 }
-
 async function sendOrder(){
  const cid=val("ocustomer"),pid=val("oproduct"),qty=Number(val("oqty"));
  const p=products.find(x=>String(x.id)===pid);
-
  if(!cid||!p||!Number.isInteger(qty)||qty<1)
   return note("Customer, product aur quantity select karein.",true);
-
  const unitPrice=Number(p.price);
  if(!Number.isFinite(unitPrice)||unitPrice<0)
   return note("Product ki price valid nahi hai.",true);
-
  const total=unitPrice*qty,profit=Number(val("oprofit"));
  if(!Number.isFinite(profit)||profit<0)
   return note("Profit amount check karein.",true);
-
  const b=document.getElementById("sendOrderButton");
  if(!b)return;
  b.disabled=true;
-
  try{
   const o=await db.from("orders").insert({
    customer_id:cid,status:"pending",total_amount:total,admin_profit:profit
   }).select("id").single();
-
   if(o.error)throw o.error;
-
   const it=await db.from("order_items").insert({
    order_id:o.data.id,product_id:p.id,product_name:p.name,
    quantity:qty,unit_price:unitPrice
   });
-
   if(it.error){
    await db.from("orders").delete().eq("id",o.data.id);
    throw it.error;
   }
-
   note("Order sent. Product Price: $"+money(total)+
    " | Profit: $"+money(profit)+" | Expected Return: $"+money(total+profit));
-
   const productSelect=document.getElementById("oproduct");
   const qtyInput=document.getElementById("oqty");
   if(productSelect)productSelect.value="";
   if(qtyInput)qtyInput.value="1";
-
   profitEdited=false;
   calcOrder(true);
-
   if(current==="orders")await loadOrders();
-
- }catch(e){
-  note("Order save error: "+e.message,true);
- }finally{
+ }catch(e){note("Order save error: "+e.message,true)}
+ finally{
   const btn=document.getElementById("sendOrderButton");
   if(btn)btn.disabled=false;
  }
@@ -548,11 +561,9 @@ async function creditCompletedOrder(orderId){
  if(orderResult.error)throw orderResult.error;
  const order=orderResult.data;
  if(String(order.status).toLowerCase()!=="completed")return;
-
  const customerId=order.customer_id;
  const productPrice=Number(order.total_amount??order.product_price??0);
  const profit=Number(order.admin_profit??0);
-
  if(!customerId)throw new Error("Order customer missing.");
  if(!Number.isFinite(productPrice)||productPrice<0||
     !Number.isFinite(profit)||profit<0)
@@ -562,7 +573,6 @@ async function creditCompletedOrder(orderId){
   .eq("customer_id",customerId).eq("reference_id",orderId)
   .eq("transaction_type","deposit").limit(1);
  if(depositCheck.error)throw depositCheck.error;
-
  if(!depositCheck.data.length&&productPrice>0){
   const deposit=await db.from("wallet_transactions").insert({
    customer_id:customerId,amount:productPrice,transaction_type:"deposit",
@@ -571,12 +581,10 @@ async function creditCompletedOrder(orderId){
   });
   if(deposit.error)throw deposit.error;
  }
-
  const profitCheck=await db.from("wallet_transactions").select("id")
   .eq("customer_id",customerId).eq("reference_id",orderId)
   .eq("transaction_type","profit").limit(1);
  if(profitCheck.error)throw profitCheck.error;
-
  if(!profitCheck.data.length&&profit>0){
   const result=await db.from("wallet_transactions").insert({
    customer_id:customerId,amount:profit,transaction_type:"profit",
@@ -586,268 +594,144 @@ async function creditCompletedOrder(orderId){
  }
 }
 
-/* SAME AVAILABLE BALANCE FORMULA AS CUSTOMER WALLET */
-function calculateAvailableBalance(transactions){
- let balance=0;
-
- (transactions||[]).forEach(x=>{
-  const type=String(x.transaction_type||"").toLowerCase().trim();
-  const status=String(x.status||"").toLowerCase().trim();
-  const amount=Number(x.amount||0);
-
-  if(!["approved","completed","success","successful","paid"].includes(status))return;
-  if(!Number.isFinite(amount))return;
-
-  if(["deposit","credit","refund","income","add_balance"].includes(type)){
-   balance+=amount;
-  }else if(["purchase","withdrawal","payment","debit","minus"].includes(type)){
-   balance-=amount;
-  }else if(type==="profit"){
-   balance+=amount;
-  }
- });
-
- return balance;
-}
-
-/* LOAD ORDERS + CURRENT CUSTOMER AVAILABLE BALANCE */
+/* LOAD ORDERS + CUSTOMER AVAILABLE BALANCES */
 async function loadOrders(){
  const version=pageVersion;
  if(current!=="orders")return;
-
  const target=document.getElementById("orderList");
  if(!target||!target.isConnected)return;
 
  const r=await db.from("orders").select("*")
   .order("created_at",{ascending:false}).limit(300);
-
  if(r.error){
   if(pageIs("orders",version))note(r.error.message,true);
   return;
  }
-
  const rows=r.data||[];
-
  for(const order of rows){
   if(!pageIs("orders",version))return;
-
   if(String(order.status).toLowerCase()==="completed"){
-   try{
-    await creditCompletedOrder(order.id);
-   }catch(e){
+   try{await creditCompletedOrder(order.id)}
+   catch(e){
     console.error("Wallet credit error:",order.id,e.message);
-    if(pageIs("orders",version))
-     note("Wallet credit error: "+e.message,true);
+    if(pageIs("orders",version))note("Wallet credit error: "+e.message,true);
    }
   }
  }
-
  if(!pageIs("orders",version))return;
-
  await loadCustomers();
  if(!pageIs("orders",version))return;
 
  let items=[];
-
  if(rows.length){
-  const ir=await db.from("order_items").select("*")
-   .in("order_id",rows.map(x=>x.id));
-
+  const ir=await db.from("order_items").select("*").in("order_id",rows.map(x=>x.id));
   if(ir.error){
-   if(pageIs("orders",version))
-    note("Order items load error: "+ir.error.message,true);
+   if(pageIs("orders",version))note("Order items load error: "+ir.error.message,true);
    return;
   }
-
   items=ir.data||[];
  }
-
  if(!pageIs("orders",version))return;
 
- /* Fetch wallet transactions for all customers */
  const walletResult=await db.from("wallet_transactions")
-  .select("customer_id,amount,transaction_type,status")
-  .limit(5000);
-
+  .select("customer_id,amount,transaction_type,status").limit(5000);
  if(!pageIs("orders",version))return;
-
  if(walletResult.error){
   note("Wallet balance load error: "+walletResult.error.message,true);
   return;
  }
 
- /* Group transactions by customer */
  const transactionsByCustomer={};
-
  (walletResult.data||[]).forEach(x=>{
   const cid=String(x.customer_id);
-  if(!transactionsByCustomer[cid])
-   transactionsByCustomer[cid]=[];
-
+  if(!transactionsByCustomer[cid])transactionsByCustomer[cid]=[];
   transactionsByCustomer[cid].push(x);
  });
 
- /* Calculate each customer's actual current balance */
  const balanceByCustomer={};
-
  let totalCustomerAvailableBalance=0;
-
  customers.forEach(c=>{
   const cid=String(c.id);
-  const balance=calculateAvailableBalance(
-   transactionsByCustomer[cid]||[]
-  );
-
+  const balance=calculateAvailableBalance(transactionsByCustomer[cid]||[]);
   balanceByCustomer[cid]=balance;
   totalCustomerAvailableBalance+=balance;
  });
-
- /* Include wallet transactions for customers not in profiles list */
  Object.keys(transactionsByCustomer).forEach(cid=>{
   if(Object.prototype.hasOwnProperty.call(balanceByCustomer,cid))return;
-
   const balance=calculateAvailableBalance(transactionsByCustomer[cid]);
   balanceByCustomer[cid]=balance;
   totalCustomerAvailableBalance+=balance;
  });
 
- /* Pending total = Product Price only. Admin profit is excluded. */
  let pendingTotal=0;
-
  rows.forEach(x=>{
   if(String(x.status||"").toLowerCase().trim()!=="pending")return;
-
-  const orderItems=items.filter(
-   i=>String(i.order_id)===String(x.id)
-  );
-
+  const orderItems=items.filter(i=>String(i.order_id)===String(x.id));
   const itemTotal=orderItems.reduce(
    (sum,i)=>sum+Number(i.unit_price||0)*Number(i.quantity||0),0
   );
-
-  const productPrice=orderItems.length
-   ?itemTotal
-   :Number(x.total_amount??x.product_price??0);
-
-  if(Number.isFinite(productPrice))
-   pendingTotal+=productPrice;
+  const productPrice=orderItems.length?itemTotal:Number(x.total_amount??x.product_price??0);
+  if(Number.isFinite(productPrice))pendingTotal+=productPrice;
  });
 
  const pendingEl=document.getElementById("pendingOrdersTotal");
  const balanceEl=document.getElementById("customerAvailableBalanceTotal");
-
  if(pendingEl)pendingEl.textContent="$"+money(pendingTotal);
  if(balanceEl)balanceEl.textContent="$"+money(totalCustomerAvailableBalance);
-
  if(!pageIs("orders",version))return;
 
  const list=document.getElementById("orderList");
  if(!list||!list.isConnected)return;
-
  list.innerHTML=rows.length?
  "<div class='tablewrap'><table><tr>"+
- "<th>Customer</th>"+
- "<th>Customer Available Balance</th>"+
- "<th>Order ID</th>"+
- "<th>Product / Quantity</th>"+
- "<th>Product Price</th>"+
- "<th>Profit</th>"+
- "<th>Expected Return</th>"+
- "<th>Status</th>"+
- "<th>Update</th></tr>"+
-
+ "<th>Customer</th><th>Customer Available Balance</th><th>Order ID</th>"+
+ "<th>Product / Quantity</th><th>Product Price</th><th>Profit</th>"+
+ "<th>Expected Return</th><th>Status</th><th>Update</th></tr>"+
  rows.map(x=>{
-  const orderItems=items.filter(
-   i=>String(i.order_id)===String(x.id)
-  );
-
+  const orderItems=items.filter(i=>String(i.order_id)===String(x.id));
   const itemTotal=orderItems.reduce(
    (sum,i)=>sum+Number(i.unit_price||0)*Number(i.quantity||0),0
   );
-
-  const productPrice=orderItems.length
-   ?itemTotal
-   :Number(x.total_amount??x.product_price??0);
-
+  const productPrice=orderItems.length?itemTotal:Number(x.total_amount??x.product_price??0);
   const profit=Number(x.admin_profit||0);
-
-  const customerAvailableBalance=
-   balanceByCustomer[String(x.customer_id)]||0;
-
-  const itemText=orderItems.length
-   ?orderItems.map(i=>`
-    <div>
-     <b>${esc(i.product_name||"Product")}</b><br>
-     Quantity: ${esc(i.quantity)}<br>
-     Unit Price: $${money(i.unit_price)}
-    </div>
-   `).join("<hr>")
-   :"Product details unavailable";
-
+  const customerAvailableBalance=balanceByCustomer[String(x.customer_id)]||0;
+  const itemText=orderItems.length?orderItems.map(i=>`
+   <div><b>${esc(i.product_name||"Product")}</b><br>
+   Quantity: ${esc(i.quantity)}<br>Unit Price: $${money(i.unit_price)}</div>
+  `).join("<hr>"):"Product details unavailable";
   return `<tr>
-   <td>
-    ${esc(customerName(x.customer_id))}<br>
-    ${esc(customerEmail(x.customer_id))}
-   </td>
-
-   <td>
-    <b>$${money(customerAvailableBalance)}</b>
-   </td>
-
-   <td>${esc(x.id)}</td>
-
-   <td>${itemText}</td>
-
-   <td>$${money(productPrice)}</td>
-
-   <td>$${money(profit)}</td>
-
+   <td>${esc(customerName(x.customer_id))}<br>${esc(customerEmail(x.customer_id))}</td>
+   <td><b>$${money(customerAvailableBalance)}</b></td>
+   <td>${esc(x.id)}</td><td>${itemText}</td>
+   <td>$${money(productPrice)}</td><td>$${money(profit)}</td>
    <td><b>$${money(productPrice+profit)}</b></td>
-
    <td><b>${esc(x.status)}</b></td>
-
-   <td>
-    <select id="orderstatus_${esc(x.id)}">
-    ${["pending","paid","completed","cancelled"].map(s=>
-     `<option value="${s}" ${String(x.status).toLowerCase()===s?"selected":""}>${s}</option>`
-    ).join("")}
-    </select>
-    <button onclick="updateOrder('${esc(x.id)}')">Save</button>
-   </td>
+   <td><select id="orderstatus_${esc(x.id)}">
+   ${["pending","paid","completed","cancelled"].map(s=>
+    `<option value="${s}" ${String(x.status).toLowerCase()===s?"selected":""}>${s}</option>`
+   ).join("")}</select>
+   <button onclick="updateOrder('${esc(x.id)}')">Save</button></td>
   </tr>`;
  }).join("")+"</table></div>"
  :"No orders found.";
 }
-
 async function updateOrder(id){
  const select=document.getElementById("orderstatus_"+id);
  if(!select)return note("Order status select nahi mila.",true);
-
  const status=select.value;
-
  if(!["pending","paid","completed","cancelled"].includes(status))
   return note("Invalid order status.",true);
-
  select.disabled=true;
-
  try{
-  const r=await db.from("orders").update({status})
-   .eq("id",id).select("*").single();
-
+  const r=await db.from("orders").update({status}).eq("id",id).select("*").single();
   if(r.error)throw r.error;
-
   if(status==="completed"){
    await creditCompletedOrder(id);
    note("Order completed. Wallet credit check ho gaya.");
-  }else{
-   note("Order successfully "+status+" ho gaya.");
-  }
-
+  }else note("Order successfully "+status+" ho gaya.");
   if(current==="orders")await loadOrders();
-
- }catch(e){
-  note("Order save error: "+e.message,true);
- }finally{
+ }catch(e){note("Order save error: "+e.message,true)}
+ finally{
   const s=document.getElementById("orderstatus_"+id);
   if(s)s.disabled=false;
  }
@@ -857,177 +741,89 @@ async function updateOrder(id){
 async function walletPage(version=pageVersion){
  await loadCustomers();
  if(!pageIs("wallet_transactions",version))return;
-
  putContent(`
  <h2>Wallet Management</h2>
-
  <div class="panel">
  <label>Customer</label>
  <select id="wcustomer" onchange="walletHistory()">
  <option value="">Select customer</option>
  ${customers.map(c=>`<option value="${esc(c.id)}">${esc(c.full_name||c.email||c.id)} — ${esc(c.email||"")}</option>`).join("")}
  </select>
-
- <label>Amount</label>
- <input id="wamount" type="number" step="0.01" min="0.01">
-
+ <label>Amount</label><input id="wamount" type="number" step="0.01" min="0.01">
  <label>Transaction</label>
  <select id="wtype">
  <option value="deposit">Add Balance</option>
  <option value="purchase">Minus Balance</option>
  <option value="profit">Add Profit</option>
  </select>
-
- <label>Description</label>
- <input id="wdesc" placeholder="Transaction details">
-
+ <label>Description</label><input id="wdesc" placeholder="Transaction details">
  <button class="green" id="walletSaveButton" onclick="walletAction()">Save Wallet Transaction</button>
  </div>
-
- <div class="panel">
- <h3>Wallet Summary</h3>
- <div id="walletSummary">Select customer.</div>
- </div>
-
- <div class="panel">
- <h3>Wallet History</h3>
+ <div class="panel"><h3>Wallet Summary</h3><div id="walletSummary">Select customer.</div></div>
+ <div class="panel"><h3>Wallet History</h3>
  <button class="gray" onclick="walletHistory()">Refresh</button>
- <div id="walletList"></div>
- </div>
+ <div id="walletList"></div></div>
  `,"wallet_transactions",version);
 }
-
 async function walletAction(){
- const cid=val("wcustomer");
- const amount=Number(val("wamount"));
- const type=val("wtype");
-
+ const cid=val("wcustomer"),amount=Number(val("wamount")),type=val("wtype");
  if(!cid||!Number.isFinite(amount)||amount<=0)
   return note("Customer aur valid amount select karein.",true);
-
  const b=document.getElementById("walletSaveButton");
  if(!b)return;
  b.disabled=true;
-
  try{
   const r=await db.from("wallet_transactions").insert({
-   customer_id:cid,
-   amount,
-   transaction_type:type,
-   status:"completed",
-   description:val("wdesc")||type,
-   reference_id:null
+   customer_id:cid,amount,transaction_type:type,status:"completed",
+   description:val("wdesc")||type,reference_id:null
   });
-
   if(r.error)throw r.error;
-
   note("Wallet transaction save ho gaya.");
-
   const amountEl=document.getElementById("wamount");
   const descEl=document.getElementById("wdesc");
-
   if(amountEl)amountEl.value="";
   if(descEl)descEl.value="";
-
   await walletHistory();
-
- }catch(e){
-  note(e.message,true);
- }finally{
+ }catch(e){note(e.message,true)}
+ finally{
   const btn=document.getElementById("walletSaveButton");
   if(btn)btn.disabled=false;
  }
 }
 
-/* WALLET CALCULATION */
+/* WALLET HISTORY — CUSTOMER PANEL KE SAME CALCULATION */
 async function walletHistory(){
- const version=pageVersion;
- const cid=val("wcustomer");
-
+ const version=pageVersion,cid=val("wcustomer");
  const summary=document.getElementById("walletSummary");
  const list=document.getElementById("walletList");
-
  if(!summary||!list)return;
-
- if(!cid){
-  summary.innerHTML="Select customer.";
-  list.innerHTML="";
-  return;
- }
+ if(!cid){summary.innerHTML="Select customer.";list.innerHTML="";return}
 
  try{
   const [walletResult,ordersResult]=await Promise.all([
    db.from("wallet_transactions").select("*")
-    .eq("customer_id",cid)
-    .order("created_at",{ascending:false}).limit(500),
-
+    .eq("customer_id",cid).order("created_at",{ascending:false}).limit(500),
    db.from("orders").select("id,total_amount,product_price,status")
-    .eq("customer_id",cid).limit(1000)
+    .eq("customer_id",cid)
   ]);
-
   if(!pageIs("wallet_transactions",version))return;
   if(walletResult.error)throw walletResult.error;
   if(ordersResult.error)throw ordersResult.error;
 
   const data=walletResult.data||[];
   const orders=ordersResult.data||[];
-
-  let balance=0,profit=0,applied=0;
-
-  data.forEach(x=>{
-   const type=String(x.transaction_type||"").toLowerCase().trim();
-   const status=String(x.status||"").toLowerCase().trim();
-   const amount=Number(x.amount||0);
-
-   if(!["approved","completed","success","successful","paid"].includes(status))return;
-   if(!Number.isFinite(amount))return;
-
-   if(["deposit","credit","refund","income","add_balance"].includes(type))
-    balance+=amount;
-   else if(["purchase","withdrawal","payment","debit","minus"].includes(type))
-    balance-=amount;
-   else if(type==="profit"){
-    balance+=amount;
-    profit+=amount;
-   }
-  });
-
-  const appliedStatuses=[
-   "paid","pickup","picked_up","picked up","processing",
-   "shipped","in_progress","in progress"
-  ];
-
-  orders.forEach(o=>{
-   const status=String(o.status||"").toLowerCase().trim();
-   if(!appliedStatuses.includes(status))return;
-
-   const amount=Number(o.total_amount??o.product_price??0);
-   if(Number.isFinite(amount)&&amount>0)applied+=amount;
-  });
+  const wallet=calculateWalletSummary(data,orders);
 
   if(!pageIs("wallet_transactions",version))return;
-
   summary.innerHTML=`
    <div class="cards">
-    <div class="stat">
-     Available Balance
-     <strong>$${money(balance)}</strong>
-    </div>
-    <div class="stat">
-     Total Profit
-     <strong>$${money(profit)}</strong>
-    </div>
-    <div class="stat">
-     Applied Balance
-     <strong>$${money(applied)}</strong>
-    </div>
+    <div class="stat">Available Balance<strong>$${money(wallet.available)}</strong></div>
+    <div class="stat">Total Profit<strong>$${money(wallet.profit)}</strong></div>
+    <div class="stat">Applied Balance<strong>$${money(wallet.applied)}</strong></div>
    </div>`;
-
   list.innerHTML=renderSimple(data);
-
  }catch(e){
-  if(pageIs("wallet_transactions",version))
-   note("Wallet load error: "+e.message,true);
+  if(pageIs("wallet_transactions",version))note("Wallet load error: "+e.message,true);
  }
 }
 
@@ -1035,172 +831,117 @@ async function walletHistory(){
 async function withdrawalsPage(version=pageVersion){
  await loadCustomers();
  if(!pageIs("withdrawals",version))return;
-
  const r=await db.from("withdrawals").select("*")
   .order("created_at",{ascending:false}).limit(300);
-
  if(r.error)throw r.error;
  if(!pageIs("withdrawals",version))return;
-
  putContent(`
  <h2>Withdrawals</h2>
  <button class="gray" onclick="withdrawalsPage()">Refresh Requests</button>
  <div id="withdrawList"></div>
  `,"withdrawals",version);
-
  const target=document.getElementById("withdrawList");
  if(!target)return;
-
  target.innerHTML=(r.data||[]).map(x=>{
   const pending=String(x.status||"").toLowerCase().trim()==="pending";
-
-  return `
-  <div class="panel">
+  return `<div class="panel">
    <b>${esc(customerName(x.customer_id))}</b>
    <p>Gmail: ${esc(customerEmail(x.customer_id))}</p>
    <p>Amount: $${money(x.amount)} | Method: ${esc(x.method)}</p>
    <p>Account Details:</p>
-   <pre>${esc(typeof x.account_details==="object"
-    ?JSON.stringify(x.account_details,null,2)
-    :x.account_details)}</pre>
+   <pre>${esc(typeof x.account_details==="object"?JSON.stringify(x.account_details,null,2):x.account_details)}</pre>
    <p>Status: <b>${esc(x.status)}</b></p>
-
    ${pending?`
     <button class="green" onclick="withdrawStatus('${esc(x.id)}','completed')">Paid / Approve</button>
     <button class="red" onclick="withdrawStatus('${esc(x.id)}','rejected')">Reject</button>
-   `:`
-    <p class="muted">Decision already made. No further action allowed.</p>
-   `}
+   `:`<p class="muted">Decision already made. No further action allowed.</p>`}
   </div>`;
  }).join("")||"No withdrawal requests.";
 }
-
 async function withdrawStatus(id,status){
  if(!["completed","rejected"].includes(status))
   return note("Invalid withdrawal status.",true);
-
  const adminNote=prompt("Admin note (optional)","");
  if(adminNote===null)return;
-
  const action=status==="completed"?"APPROVE":"REJECT";
  if(!confirm("Are you sure you want to "+action+" this withdrawal?"))return;
-
  try{
-  const r=await db.from("withdrawals")
-   .update({status:status,admin_note:adminNote})
-   .eq("id",id).ilike("status","pending")
-   .select("id").maybeSingle();
-
+  const r=await db.from("withdrawals").update({status:status,admin_note:adminNote})
+   .eq("id",id).ilike("status","pending").select("id").maybeSingle();
   if(r.error)throw r.error;
-
   if(!r.data){
    note("This withdrawal has already been processed. No changes made.",true);
    if(current==="withdrawals")await withdrawalsPage();
    return;
   }
-
-  note(status==="completed"
-   ?"Withdrawal approved and marked Completed."
-   :"Withdrawal rejected. Refund trigger has been activated.");
-
+  note(status==="completed"?"Withdrawal approved and marked Completed.":"Withdrawal rejected. Refund trigger has been activated.");
   if(current==="withdrawals")await withdrawalsPage();
-
- }catch(e){
-  note("Withdrawal error: "+e.message,true);
- }
+ }catch(e){note("Withdrawal error: "+e.message,true)}
 }
 
 /* KYC */
 async function kycPage(version=pageVersion){
  await loadCustomers();
  if(!pageIs("kyc_submissions",version))return;
-
  const r=await db.from("kyc_submissions").select("*")
   .order("created_at",{ascending:false}).limit(300);
-
  if(r.error)throw r.error;
  if(!pageIs("kyc_submissions",version))return;
-
  putContent(`
  <h2>KYC Requests</h2>
  <button class="gray" onclick="kycPage()">Refresh</button>
  <div id="kycList"></div>
  `,"kyc_submissions",version);
-
  const target=document.getElementById("kycList");
  if(!target)return;
-
  target.innerHTML=(r.data||[]).map(x=>{
   const pending=String(x.status||"").toLowerCase().trim()==="pending";
-
-  return `
-  <div class="panel">
+  return `<div class="panel">
    <b>${esc(customerName(x.customer_id))}</b>
    <p>Gmail: ${esc(customerEmail(x.customer_id))}</p>
    <p>Document: ${esc(x.document_type)} | Status: <b>${esc(x.status)}</b></p>
    <p><a href="${esc(x.document_url)}" target="_blank" rel="noopener">Open KYC Document</a></p>
-
    ${pending?`
     <button class="green" onclick="kycStatus('${esc(x.id)}','approved')">Approve</button>
     <button class="red" onclick="kycStatus('${esc(x.id)}','rejected')">Reject</button>
-   `:`
-    <p class="muted">Decision already made. No further action allowed.</p>
-   `}
+   `:`<p class="muted">Decision already made. No further action allowed.</p>`}
   </div>`;
  }).join("")||"No KYC requests.";
 }
-
 async function kycStatus(id,status){
  if(!["approved","rejected"].includes(status))
   return note("Invalid KYC status.",true);
-
  const action=status==="approved"?"APPROVE":"REJECT";
  if(!confirm("Are you sure you want to "+action+" this KYC request?"))return;
-
  try{
   const r=await db.from("kyc_submissions").update({status:status})
-   .eq("id",id).ilike("status","pending")
-   .select("id").maybeSingle();
-
+   .eq("id",id).ilike("status","pending").select("id").maybeSingle();
   if(r.error)throw r.error;
-
   if(!r.data){
    note("This KYC request has already been processed. No changes made.",true);
    if(current==="kyc_submissions")await kycPage();
    return;
   }
-
-  note(status==="approved"
-   ?"KYC approved successfully."
-   :"KYC rejected successfully.");
-
+  note(status==="approved"?"KYC approved successfully.":"KYC rejected successfully.");
   if(current==="kyc_submissions")await kycPage();
-
- }catch(e){
-  note("KYC update error: "+e.message,true);
- }
+ }catch(e){note("KYC update error: "+e.message,true)}
 }
 
 /* CUSTOMER SERVICE */
 async function supportPage(version=pageVersion){
  await loadCustomers();
  if(!pageIs("support_messages",version))return;
-
  const r=await db.from("support_messages").select("*")
   .order("created_at",{ascending:false}).limit(300);
-
  if(r.error)throw r.error;
  if(!pageIs("support_messages",version))return;
-
  putContent(`
  <h2>Customer Service</h2>
  <button class="gray" onclick="supportPage()">Refresh Messages</button>
  <div id="supportList"></div>
  `,"support_messages",version);
-
  const target=document.getElementById("supportList");
  if(!target)return;
-
  target.innerHTML=(r.data||[]).map(x=>`
  <div class="panel">
  <b>${esc(customerName(x.customer_id))}</b>
@@ -1211,17 +952,13 @@ async function supportPage(version=pageVersion){
  <button class="green" onclick="sendReply('${esc(x.id)}')">Send Reply</button>
  </div>`).join("")||"No messages.";
 }
-
 async function sendReply(id){
  const el=document.getElementById("reply_"+id);
  if(!el||!el.value.trim())return note("Reply likhein.",true);
-
  const r=await db.from("support_messages").update({
   reply:el.value.trim(),status:"answered"
  }).eq("id",id);
-
  if(r.error)return note(r.error.message,true);
-
  note("Reply customer ke message mein save ho gaya.");
  if(current==="support_messages")await supportPage();
 }
@@ -1230,10 +967,8 @@ async function sendReply(id){
 async function notificationsPage(version=pageVersion){
  const r=await db.from("notifications").select("*")
   .order("created_at",{ascending:false}).limit(300);
-
  if(r.error)throw r.error;
  if(!pageIs("notifications",version))return;
-
  putContent(`
  <h2>Notifications</h2>
  <p class="muted">Website notifications yahan show hongi.</p>
@@ -1246,13 +981,10 @@ async function notificationsPage(version=pageVersion){
 async function creditPage(version=pageVersion){
  await loadCustomers();
  if(!pageIs("credit_score_history",version))return;
-
  const r=await db.from("credit_score_history").select("*")
   .order("created_at",{ascending:false}).limit(300);
-
  if(r.error)throw r.error;
  if(!pageIs("credit_score_history",version))return;
-
  putContent(`
  <h2>Credit Score History</h2>
  <div class="panel">
@@ -1267,44 +999,24 @@ async function creditPage(version=pageVersion){
  <input id="scoreReason" placeholder="Reason for score change">
  <button class="green" onclick="saveCreditScore()">Save Credit Score</button>
  </div>
- <div class="panel">
- <h3>Credit Score History</h3>
- ${renderSimple(r.data||[])}
- </div>
+ <div class="panel"><h3>Credit Score History</h3>${renderSimple(r.data||[])}</div>
  `,"credit_score_history",version);
 }
-
 async function saveCreditScore(){
- const cid=val("ccustomer");
- const score=Number(val("newScore"));
- const reason=val("scoreReason");
-
+ const cid=val("ccustomer"),score=Number(val("newScore")),reason=val("scoreReason");
  if(!cid||val("newScore")===""||!Number.isInteger(score)||score<0||score>1000)
   return note("Customer aur score 0 se 1000 ke darmiyan likhein.",true);
-
  const c=customers.find(x=>String(x.id)===String(cid));
  if(!c)return note("Customer nahi mila.",true);
-
  const oldScore=Number(c.credit_score||0);
-
- const update=await db.from("profiles")
-  .update({credit_score:score}).eq("id",cid);
-
+ const update=await db.from("profiles").update({credit_score:score}).eq("id",cid);
  if(update.error)return note(update.error.message,true);
-
  const history=await db.from("credit_score_history").insert({
-  customer_id:cid,
-  old_score:oldScore,
-  new_score:score,
-  change_amount:score-oldScore,
-  reason:reason||"Admin adjustment"
+  customer_id:cid,old_score:oldScore,new_score:score,
+  change_amount:score-oldScore,reason:reason||"Admin adjustment"
  });
-
- if(history.error)
-  note("Score updated, lekin history save nahi hui: "+history.error.message,true);
- else
-  note("Credit score successfully updated.");
-
+ if(history.error)note("Score updated, lekin history save nahi hui: "+history.error.message,true);
+ else note("Credit score successfully updated.");
  if(current==="credit_score_history")await creditPage();
 }
 
