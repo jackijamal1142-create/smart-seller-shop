@@ -857,7 +857,7 @@ async function loadProfile(){
  $("profilePhone").textContent=currentUser.user_metadata?.phone||"-";
  $("editFullName").value=currentUser.user_metadata?.full_name||"";
  $("editPhone").value=currentUser.user_metadata?.phone||"";
- $("profileCredit").textContent="-";$("homeCredit").textContent="-";$("scoreDisplay").textContent="-";$("walletScoreDisplay").textContent="-";$("walletScoreFill").style.width="0%";
+ $("profileCredit").textContent="-";$("homeCredit").textContent="-";if($("scoreDisplay"))$("scoreDisplay").textContent="-";if($("walletScoreDisplay"))$("walletScoreDisplay").textContent="-";if($("walletScoreFill"))$("walletScoreFill").style.width="0%";
  let avatarUrl="";
  try{
   const {data,error}=await db.from("profiles").select("*").eq("id",currentUser.id).maybeSingle();
@@ -871,10 +871,10 @@ async function loadProfile(){
    avatarUrl=data.avatar||"";
    $("profileCredit").textContent=scorePercent+"%";
    $("homeCredit").textContent=scorePercent+"%";
-   $("scoreDisplay").textContent=scorePercent+"%";
-   $("scoreFill").style.width=scorePercent+"%";
-   $("walletScoreDisplay").textContent=scorePercent+"%";
-   $("walletScoreFill").style.width=scorePercent+"%";
+   if($("scoreDisplay"))$("scoreDisplay").textContent=scorePercent+"%";
+   if($("scoreFill"))$("scoreFill").style.width=scorePercent+"%";
+   if($("walletScoreDisplay"))$("walletScoreDisplay").textContent=scorePercent+"%";
+   if($("walletScoreFill"))$("walletScoreFill").style.width=scorePercent+"%";
   }
  }catch(err){console.error("Profile load:",err.message)}
  const fallback="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100%" height="100%" fill="#dbeafe"/><text x="50%" y="57%" text-anchor="middle" font-size="48">👤</text></svg>');
