@@ -224,8 +224,8 @@ button,input,select,textarea{font-size:14px}
   
   <div id="ordersList">Loading orders...</div>
   <div class="card" style="margin-top:15px">
-   <h3>Recent Orders <button class="link" style="float:right" onclick="openPage('orders')">View All →</button></h3>
-   <div id="recentOrders">Loading orders...</div>
+   <button type="button" class="full gray" id="recentOrdersToggle" onclick="toggleRecentOrders()">Recently Orders ▾</button>
+   <div id="recentOrders" class="hidden">Loading orders...</div>
   </div>
  </section>
 
@@ -724,17 +724,24 @@ window.loadOrders=async function(){
    });
   }
   cachedOrders=orders;renderRecentOrders();
-  const activeOrders=orders.filter(o=>orderStatus(o)!=="COMPLETE");
+  const activeOrders=orders.filter(o=>!["cancelled","canceled"].includes(String(o.status||"").toLowerCase().trim())&&orderStatus(o)!=="COMPLETE");
   if(!activeOrders.length){box.textContent="No active orders.";}
   else{box.innerHTML="";activeOrders.forEach(o=>box.appendChild(makeOrderCard(o)));}
  }catch(err){box.textContent="Orders error: "+err.message;console.error(err)}
 };
 
+window.toggleRecentOrders=function(){
+ const box=$("recentOrders"),button=$("recentOrdersToggle");if(!box||!button)return;
+ const opening=box.classList.contains("hidden");
+ box.classList.toggle("hidden",!opening);
+ button.textContent=opening?"Recently Orders ▴":"Recently Orders ▾";
+ if(opening)renderRecentOrders();
+};
 function renderRecentOrders(){
  const box=$("recentOrders");if(!box)return;
  box.innerHTML="";
  const completedOrders=cachedOrders.filter(o=>["completed","complete","delivered"].includes(String(o.status||"").toLowerCase().trim()));
- if(!completedOrders.length){box.textContent="No completed orders yet.";return}
+ if(!completedOrders.length){box.textContent="No recent orders yet.";return}
  completedOrders.forEach(o=>box.appendChild(makeOrderCard(o)));
 }
 
