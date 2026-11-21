@@ -395,7 +395,7 @@ function showCustomerProducts(id){
  `,"customer_products",pageVersion);
 }
 
-/* WALLET CALCULATION — CUSTOMER PANEL KE BILKUL SAME RULES */
+/* WALLET CALCULATION */
 function calculateWalletSummary(transactions,orders){
  let available=0,profit=0,applied=0;
 
@@ -424,7 +424,7 @@ function calculateWalletSummary(transactions,orders){
 
  (orders||[]).forEach(o=>{
   const status=String(o.status||"").toLowerCase().trim();
-  const pickedUpStatuses=["processing","shipped","picked_up","picked up","in_progress"];
+  const pickedUpStatuses=["processing","shipping","shipped","picked_up","picked up","in_progress"];
   if(pickedUpStatuses.includes(status)){
    const amount=Number(o.total_amount??o.product_price??0);
    if(Number.isFinite(amount)&&amount>0)applied+=amount;
@@ -438,7 +438,6 @@ function calculateWalletSummary(transactions,orders){
  };
 }
 
-/* Same available balance formula for customer rows in Orders page */
 function calculateAvailableBalance(transactions){
  return calculateWalletSummary(transactions,[]).available;
 }
@@ -699,6 +698,16 @@ async function loadOrders(){
    <div><b>${esc(i.product_name||"Product")}</b><br>
    Quantity: ${esc(i.quantity)}<br>Unit Price: $${money(i.unit_price)}</div>
   `).join("<hr>"):"Product details unavailable";
+
+  const orderStatuses=[
+   ["pending","Pending"],
+   ["processing","Processing"],
+   ["shipping","Shipping"],
+   ["completed","Complete"],
+   ["cancelled","Cancel"]
+  ];
+  const currentStatus=String(x.status||"").toLowerCase().trim();
+
   return `<tr>
    <td>${esc(customerName(x.customer_id))}<br>${esc(customerEmail(x.customer_id))}</td>
    <td><b>$${money(customerAvailableBalance)}</b></td>
@@ -707,9 +716,12 @@ async function loadOrders(){
    <td><b>$${money(productPrice+profit)}</b></td>
    <td><b>${esc(x.status)}</b></td>
    <td><select id="orderstatus_${esc(x.id)}">
-   ${["pending","paid","completed","cancelled"].map(s=>
-    `<option value="${s}" ${String(x.status).toLowerCase()===s?"selected":""}>${s}</option>`
-   ).join("")}</select>
+   ${orderStatuses.map(([value,label])=>
+    `<option value="${value}" ${currentStatus===value?"selected":""}>${label}</option>`
+   ).join("")}
+   ${!orderStatuses.some(([value])=>value===currentStatus)?
+    `<option value="${esc(currentStatus)}" selected>${esc(x.status)} (Old Status)</option>`:""}
+   </select>
    <button onclick="updateOrder('${esc(x.id)}')">Save</button></td>
   </tr>`;
  }).join("")+"</table></div>"
@@ -719,7 +731,7 @@ async function updateOrder(id){
  const select=document.getElementById("orderstatus_"+id);
  if(!select)return note("Order status select nahi mila.",true);
  const status=select.value;
- if(!["pending","paid","completed","cancelled"].includes(status))
+ if(!["pending","processing","shipping","completed","cancelled"].includes(status))
   return note("Invalid order status.",true);
  select.disabled=true;
  try{
@@ -791,7 +803,7 @@ async function walletAction(){
  }
 }
 
-/* WALLET HISTORY — CUSTOMER PANEL KE SAME CALCULATION */
+/* WALLET HISTORY */
 async function walletHistory(){
  const version=pageVersion,cid=val("wcustomer");
  const summary=document.getElementById("walletSummary");
