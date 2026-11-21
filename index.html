@@ -49,6 +49,14 @@ button.link{background:none;color:var(--blue);padding:5px;width:auto}
 .status.rejected,.status.cancelled,.status.insufficient{background:#fee2e2;color:#b91c1c}
 .order-row{display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:1px solid var(--border);padding:12px 0}
 .order-row:last-child{border:0}.order-row strong{font-size:14px}.order-row .muted{margin-top:5px}
+/* Compact order cards so more orders fit on each screen */
+.order-card{padding:10px 12px;margin:7px 0;border-radius:12px}
+.order-card h3{font-size:14px;margin:0 0 5px}
+.order-card p{font-size:12px;line-height:1.2;margin:3px 0}
+.order-card .status{font-size:10px;padding:5px 8px;margin-top:4px}
+.order-card .order-progress{gap:4px;margin:7px 0 2px}
+.order-card .order-step{min-width:0;padding:6px 2px;font-size:9px}
+.order-card button{padding:8px 10px;font-size:12px;margin-top:5px}
 .score-box{text-align:center}.score-number{font-size:36px;font-weight:bold;margin:8px}
 .score-track{height:12px;background:#e5eaf3;border-radius:20px;overflow:hidden;margin:15px 0}
 .score-fill{height:100%;background:linear-gradient(90deg,#22c55e,#eab308);border-radius:20px}
@@ -210,7 +218,7 @@ button,input,select,textarea{font-size:14px}
 
  <section id="ordersPage" class="page hidden">
   <div class="page-title"><h2>My Orders</h2><p class="muted">Orders sent to you by the admin.</p></div>
-  <div id="ordersList">Loading orders...</div><button class="full gray" onclick="loadOrders()">Refresh Orders</button>
+  <div id="ordersList">Loading orders...</div>
  </section>
 
  <section id="walletPage" class="page hidden">
@@ -643,7 +651,7 @@ async function pickupOrder(orderId,button,statusElement,order){
 }
 
 function makeOrderCard(o){
- const card=document.createElement("div");card.className="data-card";
+ const card=document.createElement("div");card.className="data-card order-card";
  const title=document.createElement("h3");title.textContent="Order";
  const quantity=document.createElement("p");quantity.textContent="Quantity: "+safeText(o.quantity);
  const price=document.createElement("p");price.textContent="Product Price: "+money(orderPrice(o));
