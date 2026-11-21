@@ -591,7 +591,7 @@ $("bankForm").addEventListener("submit",async e=>{
  const amount=Number($("bankAmount").value);
  const details={account_name:$("bankAccountName").value.trim(),bank_name:$("bankName").value.trim(),iban:$("bankIban").value.trim(),account_number:$("bankAccountNumber").value.trim()};
  if(!details.account_name||!details.bank_name||!details.iban||!details.account_number||!Number.isFinite(amount)||amount<=0){$("withdrawMessage").textContent="Complete all bank details and enter a valid amount.";return}
- await submitWithdrawal("Bank Account",amount,details,"bankForm","bankSubmit");
+ await submitWithdrawal("BANK_ACCOUNT",amount,details,"bankForm","bankSubmit");
 });
 
 window.loadWithdrawals=async function(){
