@@ -468,34 +468,55 @@ function addProductImage(container,value){
 window.loadShop=async function(){
  const box=$("shopList");box.textContent="Loading products...";
  try{
-  const {data,error}=await db.from("products").select("id,name,price,category,image").order("id",{ascending:false});
-  if(error)throw error;
-  cachedProducts=data||[];
-  if(!data?.length){box.textContent="No products available.";return}
+  const [productsResult,addedResult]=await Promise.all([
+   db.from("products").select("id,name,price,category,image").order("id",{ascending:false}),
+   db.from("customer_products").select("product_id").eq("customer_id",currentUser.id)
+  ]);
+  if(productsResult.error)throw productsResult.error;
+  if(addedResult.error)throw addedResult.error;
+  const data=productsResult.data||[];
+  const addedIds=new Set((addedResult.data||[]).map(x=>String(x.product_id)));
+  cachedProducts=data;
+  if(!data.length){box.textContent="No products available.";return}
   box.innerHTML="";
   data.forEach(p=>{
+   const alreadyAdded=addedIds.has(String(p.id));
    const card=document.createElement("div");card.className="product-card";addProductImage(card,p.image);
    const title=document.createElement("h3");title.textContent=p.name||"Product";
    const cat=document.createElement("p");cat.className="small";cat.textContent=p.category||"";
    const price=document.createElement("p");price.className="product-price";price.textContent=money(p.price);
-   const btn=document.createElement("button");btn.className="full kyc-action";btn.textContent="Add to My Products";btn.disabled=!isKycApproved;btn.onclick=()=>addProduct(p);
+   const btn=document.createElement("button");btn.className="full kyc-action";
+   btn.textContent=alreadyAdded?"Added":"Add to My Products";
+   btn.disabled=alreadyAdded||!isKycApproved;
+   if(alreadyAdded)btn.classList.add("gray");
+   btn.onclick=()=>addProduct(p,btn);
    card.append(title,cat,price,btn);box.appendChild(card);
   });
  }catch(err){box.textContent="Shop error: "+err.message}
 };
 
-async function addProduct(p){
+async function addProduct(p,button){
  if(!requireKyc())return;
+ if(button){button.disabled=true;button.textContent="Adding..."}
  try{
+  const {data:existing,error:checkError}=await db.from("customer_products").select("id").eq("customer_id",currentUser.id).eq("product_id",String(p.id)).limit(1);
+  if(checkError)throw checkError;
+  if(existing?.length){
+   if(button){button.textContent="Added";button.classList.add("gray")}
+   return;
+  }
   const {error}=await db.from("customer_products").insert({
    customer_id:currentUser.id,product_id:String(p.id),
    product_name:p.name||"Product",price:Number(p.price||0),
    category:p.category||"",image_url:p.image||null
   });
   if(error)throw error;
-  alert("Product added successfully.");
+  if(button){button.textContent="Added";button.classList.add("gray")}
   await loadMyProducts();await loadHomeData();
- }catch(err){alert("Add product error: "+err.message)}
+ }catch(err){
+  if(button){button.disabled=false;button.textContent="Add to My Products"}
+  alert("Add product error: "+err.message)
+ }
 }
 
 window.loadMyProducts=async function(){
