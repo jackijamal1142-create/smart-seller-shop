@@ -416,7 +416,7 @@ function showCustomerProducts(id){
  <div class="panel"><h3>Customer Products</h3>${renderSimple(items)}</div>`;
 }
 
-/* ORDERS - UPDATED CALCULATION */
+/* ORDERS */
 
 async function ordersPage(){
  await Promise.all([loadCustomers(),loadProducts()]);
@@ -467,16 +467,12 @@ async function ordersPage(){
  await loadOrders();
 }
 
-/* LIVE PRODUCT PRICE, PROFIT AND EXPECTED RETURN */
-
 function calcOrder(resetProfit=false){
  const p=products.find(x=>String(x.id)===val("oproduct"));
  const qty=Number(val("oqty"));
-
  const validQty=Number.isInteger(qty)&&qty>0?qty:0;
  const unitPrice=Number(p?.price||0);
  const productPrice=unitPrice*validQty;
-
  const profitInput=document.getElementById("oprofit");
 
  if(resetProfit||!profitEdited){
@@ -490,8 +486,6 @@ function calcOrder(resetProfit=false){
  document.getElementById("profitDisplay").textContent="$"+money(profit);
  document.getElementById("expectedReturn").textContent="$"+money(expectedReturn);
 }
-
-/* SAVE NEW ORDER */
 
 async function sendOrder(){
  const cid=val("ocustomer");
@@ -539,17 +533,14 @@ async function sendOrder(){
    throw it.error;
   }
 
-  note(
-   "Order sent successfully. Product Price: $"+money(total)+
+  note("Order sent. Product Price: $"+money(total)+
    " | Profit: $"+money(profit)+
-   " | Expected Return: $"+money(expectedReturn)
-  );
+   " | Expected Return: $"+money(expectedReturn));
 
   document.getElementById("oproduct").value="";
   document.getElementById("oqty").value="1";
   profitEdited=false;
   calcOrder(true);
-
   await loadOrders();
 
  }catch(e){
@@ -559,7 +550,81 @@ async function sendOrder(){
  }
 }
 
-/* LOAD ORDERS AND THEIR ITEMS */
+/* WALLET CREDIT - COMPLETED ORDER */
+
+async function creditCompletedOrder(orderId){
+
+ const orderResult=await db.from("orders")
+  .select("*")
+  .eq("id",orderId)
+  .single();
+
+ if(orderResult.error)throw orderResult.error;
+
+ const order=orderResult.data;
+ if(order.status!=="completed")return;
+
+ const customerId=order.customer_id;
+ const productPrice=Number(order.total_amount||0);
+ const profit=Number(order.admin_profit||0);
+
+ if(!customerId)throw new Error("Order customer missing.");
+ if(!Number.isFinite(productPrice)||productPrice<0||
+    !Number.isFinite(profit)||profit<0)
+  throw new Error("Order amount invalid.");
+
+ // Check if product price was already returned
+ const depositCheck=await db.from("wallet_transactions")
+  .select("id")
+  .eq("customer_id",customerId)
+  .eq("reference_id",orderId)
+  .eq("transaction_type","deposit")
+  .limit(1);
+
+ if(depositCheck.error)throw depositCheck.error;
+
+ // Return product price only once
+ if(!depositCheck.data.length&&productPrice>0){
+
+  const deposit=await db.from("wallet_transactions").insert({
+   customer_id:customerId,
+   amount:productPrice,
+   transaction_type:"deposit",
+   status:"completed",
+   description:"Completed order product price returned",
+   reference_id:orderId
+  });
+
+  if(deposit.error)throw deposit.error;
+ }
+
+ // Check if profit was already added
+ const profitCheck=await db.from("wallet_transactions")
+  .select("id")
+  .eq("customer_id",customerId)
+  .eq("reference_id",orderId)
+  .eq("transaction_type","profit")
+  .limit(1);
+
+ if(profitCheck.error)throw profitCheck.error;
+
+ // Add profit only once
+ if(!profitCheck.data.length&&profit>0){
+
+  const profitResult=await db.from("wallet_transactions").insert({
+   customer_id:customerId,
+   amount:profit,
+   transaction_type:"profit",
+   status:"completed",
+   description:"Completed order profit",
+   reference_id:orderId
+  });
+
+  if(profitResult.error)throw profitResult.error;
+ }
+}
+
+/* LOAD ORDERS */
 
 async function loadOrders(){
  const r=await db.from("orders").select("*")
@@ -567,61 +632,56 @@ async function loadOrders(){
 
  if(r.error)return note(r.error.message,true);
 
+ const rows=r.data||[];
+
+ // Automatically credit completed orders that are not credited yet
+ for(const order of rows){
+  if(order.status==="completed"){
+   try{
+    await creditCompletedOrder(order.id);
+   }catch(e){
+    console.error("Wallet credit error:",order.id,e.message);
+    note("Wallet credit error: "+e.message,true);
+   }
+  }
+ }
+
  await loadCustomers();
 
- const rows=r.data||[];
  let items=[];
 
  if(rows.length){
   const ids=rows.map(x=>x.id);
   const ir=await db.from("order_items").select("*").in("order_id",ids);
-
   if(ir.error)return note("Order items load error: "+ir.error.message,true);
   items=ir.data||[];
  }
 
  document.getElementById("orderList").innerHTML=rows.length?
  "<div class='tablewrap'><table>"+
- "<tr>"+
- "<th>Customer</th>"+
- "<th>Order ID</th>"+
- "<th>Product / Quantity</th>"+
- "<th>Product Price</th>"+
- "<th>Profit</th>"+
- "<th>Expected Return</th>"+
- "<th>Status</th>"+
- "<th>Update</th>"+
- "</tr>"+
+ "<tr><th>Customer</th><th>Order ID</th><th>Product / Quantity</th>"+
+ "<th>Product Price</th><th>Profit</th><th>Expected Return</th>"+
+ "<th>Status</th><th>Update</th></tr>"+
 
  rows.map(x=>{
   const orderItems=items.filter(i=>String(i.order_id)===String(x.id));
-
   const itemTotal=orderItems.reduce((sum,i)=>
    sum+(Number(i.unit_price||0)*Number(i.quantity||0)),0
   );
-
-  const productPrice=orderItems.length?
-   itemTotal:Number(x.total_amount||0);
-
+  const productPrice=orderItems.length?itemTotal:Number(x.total_amount||0);
   const profit=Number(x.admin_profit||0);
   const expectedReturn=productPrice+profit;
 
   const itemText=orderItems.length?
    orderItems.map(i=>`
-    <div>
-     <b>${esc(i.product_name||"Product")}</b>
-     <br>Quantity: ${esc(i.quantity)}
-     <br>Unit Price: $${money(i.unit_price)}
-    </div>
-   `).join("<hr>"):
-   "Product details unavailable";
+    <div><b>${esc(i.product_name||"Product")}</b>
+    <br>Quantity: ${esc(i.quantity)}
+    <br>Unit Price: $${money(i.unit_price)}</div>
+   `).join("<hr>"):"Product details unavailable";
 
   return `
   <tr>
-   <td>
-    ${esc(customerName(x.customer_id))}
-    <br>${esc(customerEmail(x.customer_id))}
-   </td>
+   <td>${esc(customerName(x.customer_id))}<br>${esc(customerEmail(x.customer_id))}</td>
    <td>${esc(x.id)}</td>
    <td>${itemText}</td>
    <td>$${money(productPrice)}</td>
@@ -637,11 +697,10 @@ async function loadOrders(){
     <button onclick="updateOrder('${esc(x.id)}')">Save</button>
    </td>
   </tr>`;
- }).join("")+
- "</table></div>":"No orders found.";
+ }).join("")+"</table></div>":"No orders found.";
 }
 
-/* UPDATE ORDER STATUS */
+/* UPDATE ORDER STATUS AND CREDIT WALLET */
 
 async function updateOrder(id){
  const select=document.getElementById("orderstatus_"+id);
@@ -656,18 +715,28 @@ async function updateOrder(id){
  select.disabled=true;
 
  try{
+  const old=await db.from("orders")
+   .select("status")
+   .eq("id",id)
+   .single();
+
+  if(old.error)throw old.error;
+
   const r=await db.from("orders")
    .update({status:status})
    .eq("id",id)
-   .select("id,status")
+   .select("*")
    .single();
 
   if(r.error)throw r.error;
 
-  if(!r.data||r.data.status!==status)
-   throw new Error("Database ne updated status confirm nahi kiya.");
+  if(status==="completed"){
+   await creditCompletedOrder(id);
+   note("Order completed. Product price aur profit customer wallet mein add ho gaye.");
+  }else{
+   note("Order successfully "+status+" ho gaya.");
+  }
 
-  note("Order successfully "+status+" ho gaya.");
   await loadOrders();
 
  }catch(e){
@@ -678,7 +747,7 @@ async function updateOrder(id){
  }
 }
 
-/* WALLET */
+/* WALLET MANAGEMENT */
 
 async function walletPage(){
  await loadCustomers();
@@ -713,11 +782,13 @@ async function walletAction(){
  const cid=val("wcustomer");
  const amount=Number(val("wamount"));
  const type=val("wtype");
+
  if(!cid||!Number.isFinite(amount)||amount<=0)
   return note("Customer aur valid amount select karein.",true);
 
  const b=document.getElementById("walletSaveButton");
  b.disabled=true;
+
  try{
   const r=await db.from("wallet_transactions").insert({
    customer_id:cid,
@@ -727,33 +798,45 @@ async function walletAction(){
    description:val("wdesc")||type,
    reference_id:null
   });
+
   if(r.error)throw r.error;
+
   note("Wallet transaction save ho gaya.");
   document.getElementById("wamount").value="";
   document.getElementById("wdesc").value="";
   await walletHistory();
- }catch(e){note(e.message,true);}
- finally{b.disabled=false;}
+
+ }catch(e){
+  note(e.message,true);
+ }finally{
+  b.disabled=false;
+ }
 }
 
 async function walletHistory(){
  const cid=val("wcustomer");
  const summary=document.getElementById("walletSummary");
  const list=document.getElementById("walletList");
+
  if(!cid){
   if(summary)summary.innerHTML="Select customer.";
   if(list)list.innerHTML="";
   return;
  }
+
  const r=await db.from("wallet_transactions").select("*")
-  .eq("customer_id",cid).order("created_at",{ascending:false}).limit(500);
+  .eq("customer_id",cid)
+  .order("created_at",{ascending:false}).limit(500);
+
  if(r.error)return note(r.error.message,true);
 
  let balance=0,profit=0,applied=0;
  const data=r.data||[];
+
  data.forEach(x=>{
   if(x.status!=="completed")return;
   const a=Number(x.amount||0);
+
   if(x.transaction_type==="deposit"||x.transaction_type==="refund")balance+=a;
   if(x.transaction_type==="purchase")balance-=a;
   if(x.transaction_type==="withdrawal"){balance-=a;applied+=a;}
@@ -762,10 +845,11 @@ async function walletHistory(){
 
  summary.innerHTML=`
  <div class="cards">
- <div class="stat">Net Balance<strong>${money(balance)}</strong></div>
- <div class="stat">Profit<strong>${money(profit)}</strong></div>
- <div class="stat">Applied Balance<strong>${money(applied)}</strong></div>
+ <div class="stat">Available Balance<strong>$${money(balance)}</strong></div>
+ <div class="stat">Total Profit<strong>$${money(profit)}</strong></div>
+ <div class="stat">Applied Balance<strong>$${money(applied)}</strong></div>
  </div>`;
+
  list.innerHTML=renderSimple(data);
 }
 
@@ -798,9 +882,11 @@ async function withdrawalsPage(){
 async function withdrawStatus(id,status){
  const adminNote=prompt("Admin note (optional)","");
  if(adminNote===null)return;
+
  const r=await db.from("withdrawals").update({
   status,admin_note:adminNote
  }).eq("id",id);
+
  if(r.error)return note(r.error.message,true);
  note("Withdrawal updated.");
  await withdrawalsPage();
@@ -864,9 +950,11 @@ async function supportPage(){
 async function sendReply(id){
  const el=document.getElementById("reply_"+id);
  if(!el||!el.value.trim())return note("Reply likhein.",true);
+
  const r=await db.from("support_messages").update({
   reply:el.value.trim(),status:"answered"
  }).eq("id",id);
+
  if(r.error)return note(r.error.message,true);
  note("Reply customer ke message mein save ho gaya.");
  await supportPage();
@@ -878,6 +966,7 @@ async function notificationsPage(){
  const r=await db.from("notifications").select("*")
   .order("created_at",{ascending:false}).limit(300);
  if(r.error)throw r.error;
+
  document.getElementById("content").innerHTML=`
  <h2>Notifications</h2>
  <p class="muted">Website notifications yahan show hongi.</p>
@@ -918,6 +1007,7 @@ async function saveCreditScore(){
  const cid=val("ccustomer");
  const score=Number(val("newScore"));
  const reason=val("scoreReason");
+
  if(!cid||val("newScore")===""||!Number.isInteger(score)||score<0||score>1000)
   return note("Customer aur score 0 se 1000 ke darmiyan likhein.",true);
 
@@ -925,9 +1015,11 @@ async function saveCreditScore(){
  if(!c)return note("Customer nahi mila.",true);
 
  const oldScore=Number(c.credit_score||0);
+
  const update=await db.from("profiles").update({
   credit_score:score
  }).eq("id",cid);
+
  if(update.error)return note(update.error.message,true);
 
  const history=await db.from("credit_score_history").insert({
@@ -943,6 +1035,7 @@ async function saveCreditScore(){
  }else{
   note("Credit score successfully updated.");
  }
+
  await creditPage();
 }
 
