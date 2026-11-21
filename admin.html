@@ -718,8 +718,6 @@ async function walletHistory(){
    else if(type==="profit"){balance+=amount;profit+=amount}
   });
 
-  /* Applied balance: only orders customer has paid for / picked up
-     and which are not yet completed or cancelled. */
   const appliedStatuses=[
    "paid","pickup","picked_up","picked up","processing",
    "shipped","in_progress","in progress"
@@ -744,40 +742,96 @@ async function walletHistory(){
  }
 }
 
-/* WITHDRAWALS */
+/* WITHDRAWALS - UPDATED */
 async function withdrawalsPage(version=pageVersion){
  await loadCustomers();
  if(!pageIs("withdrawals",version))return;
+
  const r=await db.from("withdrawals").select("*")
   .order("created_at",{ascending:false}).limit(300);
+
  if(r.error)throw r.error;
  if(!pageIs("withdrawals",version))return;
+
  putContent(`
  <h2>Withdrawals</h2>
  <button class="gray" onclick="withdrawalsPage()">Refresh Requests</button>
  <div id="withdrawList"></div>
  `,"withdrawals",version);
+
  const target=document.getElementById("withdrawList");
  if(!target)return;
- target.innerHTML=(r.data||[]).map(x=>`
- <div class="panel">
- <b>${esc(customerName(x.customer_id))}</b>
- <p>Gmail: ${esc(customerEmail(x.customer_id))}</p>
- <p>Amount: ${esc(x.amount)} | Method: ${esc(x.method)}</p>
- <p>Account Details:</p>
- <pre>${esc(typeof x.account_details==="object"?JSON.stringify(x.account_details,null,2):x.account_details)}</pre>
- <p>Status: ${esc(x.status)}</p>
- <button class="green" onclick="withdrawStatus('${esc(x.id)}','approved')">Paid / Approve</button>
- <button class="red" onclick="withdrawStatus('${esc(x.id)}','rejected')">Reject</button>
- </div>`).join("")||"No withdrawal requests.";
+
+ target.innerHTML=(r.data||[]).map(x=>{
+  const pending=String(x.status||"").toLowerCase().trim()==="pending";
+
+  return `
+  <div class="panel">
+   <b>${esc(customerName(x.customer_id))}</b>
+   <p>Gmail: ${esc(customerEmail(x.customer_id))}</p>
+   <p>Amount: $${money(x.amount)} | Method: ${esc(x.method)}</p>
+   <p>Account Details:</p>
+   <pre>${esc(typeof x.account_details==="object"
+    ?JSON.stringify(x.account_details,null,2)
+    :x.account_details)}</pre>
+   <p>Status: <b>${esc(x.status)}</b></p>
+
+   ${pending?`
+    <button class="green"
+     onclick="withdrawStatus('${esc(x.id)}','completed')">
+     Paid / Approve
+    </button>
+    <button class="red"
+     onclick="withdrawStatus('${esc(x.id)}','rejected')">
+     Reject
+    </button>
+   `:`
+    <p class="muted">Decision already made. No further action allowed.</p>
+   `}
+  </div>`;
+ }).join("")||"No withdrawal requests.";
 }
+
+/* WITHDRAWAL STATUS - ONE-TIME DECISION */
 async function withdrawStatus(id,status){
+ if(!["completed","rejected"].includes(status))
+  return note("Invalid withdrawal status.",true);
+
  const adminNote=prompt("Admin note (optional)","");
  if(adminNote===null)return;
- const r=await db.from("withdrawals").update({status,admin_note:adminNote}).eq("id",id);
- if(r.error)return note(r.error.message,true);
- note("Withdrawal updated.");
- if(current==="withdrawals")await withdrawalsPage();
+
+ const action=status==="completed"?"APPROVE":"REJECT";
+ if(!confirm("Are you sure you want to "+action+" this withdrawal?"))
+  return;
+
+ try{
+  const r=await db.from("withdrawals")
+   .update({
+    status:status,
+    admin_note:adminNote
+   })
+   .eq("id",id)
+   .ilike("status","pending")
+   .select("id")
+   .maybeSingle();
+
+  if(r.error)throw r.error;
+
+  if(!r.data){
+   note("This withdrawal has already been processed. No changes made.",true);
+   if(current==="withdrawals")await withdrawalsPage();
+   return;
+  }
+
+  note(status==="completed"
+   ?"Withdrawal approved and marked Completed."
+   :"Withdrawal rejected. Refund trigger has been activated.");
+
+  if(current==="withdrawals")await withdrawalsPage();
+
+ }catch(e){
+  note("Withdrawal error: "+e.message,true);
+ }
 }
 
 /* KYC */
