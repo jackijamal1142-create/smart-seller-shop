@@ -106,12 +106,17 @@ hr{border:0;border-top:1px solid var(--border);margin:18px 0}
   </form>
   <p id="message" class="message"></p>
   <hr>
-  <div class="login-help">
-   <h3>Need Login Help?</h3>
-   <p class="muted">Password bhool gaye hain ya account mein login nahi ho raha? Apna registered email aur masla likh kar Customer Service ko message bhejein. Login ki zaroorat nahi.</p>
+  <button type="button" class="full gray" onclick="toggleLoginCustomerService()">🎧 Customer Service</button>
+  <div id="loginCustomerService" class="login-help hidden">
+   <h3>Customer Service</h3>
+   <p class="muted">Password reset karna ho ya login/account ka masla ho, yahan se help lein. Login ki zaroorat nahi.</p>
+   <button type="button" class="full" onclick="showForgot()">Forgot Password / Reset Password</button>
+   <hr>
+   <h3>Contact Support</h3>
    <input id="loginHelpEmail" type="email" placeholder="Your registered email address">
-   <textarea id="loginHelpText" placeholder="Describe your login problem..." rows="3"></textarea>
-   <button type="button" class="full gray" onclick="sendLoginHelp()">Contact Customer Service</button>
+   <textarea id="loginHelpText" placeholder="Describe your login or account problem..." rows="3"></textarea>
+   <button type="button" class="full green-btn" onclick="sendLoginHelp()">Send Support Request</button>
+   <p class="muted small">Support request aapke email app mein tayyar hogi. Send button zaroor dabayein.</p>
   </div>
  </div>
 </div>
@@ -197,7 +202,7 @@ hr{border:0;border-top:1px solid var(--border);margin:18px 0}
  </section>
 
  <section id="supportPage" class="page hidden">
-  <div class="page-title"><h2>Customer Support</h2><p class="muted">Send a message and check admin replies.</p></div>
+  <div class="page-title"><h2>Customer Service</h2><p class="muted">Yahan admin ko message bhejein aur unke replies dekhein.</p></div>
   <div class="card"><h3>Send Message</h3><form id="supportForm"><textarea id="supportInput" placeholder="Write your message here..." required></textarea><button class="full" id="supportButton">Send Message</button></form><p id="supportMessage" class="message"></p></div>
   <div class="card"><h3>My Messages</h3><div id="supportList">Loading messages...</div><button class="full gray" onclick="loadSupport()">Refresh Messages</button></div>
  </section>
@@ -252,6 +257,9 @@ function hideAuthForms(){["loginForm","registerForm","forgotForm","newPasswordFo
 window.showLogin=function(){hideAuthForms();$("loginForm").classList.remove("hidden");$("loginTab").classList.add("active");$("registerTab").classList.remove("active");msg("")}
 window.showRegister=function(){hideAuthForms();$("registerForm").classList.remove("hidden");$("registerTab").classList.add("active");$("loginTab").classList.remove("active");msg("")}
 window.showForgot=function(){hideAuthForms();$("forgotForm").classList.remove("hidden");$("resetEmail").value=$("loginIdentity").value.trim();msg("")}
+window.toggleLoginCustomerService=function(){
+ $("loginCustomerService").classList.toggle("hidden");
+};
 window.sendLoginHelp=function(){
  const email=$("loginHelpEmail").value.trim();
  const issue=$("loginHelpText").value.trim();
