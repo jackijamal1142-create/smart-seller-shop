@@ -354,7 +354,7 @@ async function go(page,btn){
 
 /* DASHBOARD */
 async function dashboard(version){
- const tables=[["profiles","Customers"],["products","Products"],["orders","Orders"],["withdrawals","Withdrawals"],["kyc_submissions","KYC Requests"],["support_messages","Messages"]];
+ const tables=[["profiles","Customers"],["products","Products"],["orders","Orders"],["withdrawals","Withdrawals"],["kyc_submissions","KYC Requests"],["support_chat_messages","Messages"]];
  let html="<h2>Dashboard</h2><div class='cards'>";
  for(const [table,name] of tables){
   const r=await db.from(table).select("*",{count:"exact",head:true});
@@ -740,231 +740,96 @@ let supportLastSignature = "";
 async function supportPage(version=pageVersion){
  await loadCustomers();
  if(!pageIs("support_messages",version))return;
-
- const r=await db.from("support_messages")
-  .select("*")
-  .order("created_at",{ascending:true})
-  .limit(1000);
-
+ const r=await db.from("support_chat_messages").select("*").order("created_at",{ascending:true}).limit(1000);
  if(r.error)throw r.error;
  if(!pageIs("support_messages",version))return;
-
  supportMessages=r.data||[];
  activeSupportCustomerId=null;
  supportLastSignature=JSON.stringify(supportMessages);
-
  putContent(`<h2>Customer Service Chat</h2>
  <p class="muted">Customer ka Gmail select karke chat open karein. Naye messages automatically refresh honge.</p>
  <button class="gray" onclick="refreshSupportMessages(true)">Refresh Messages</button>
  <input id="supportSearch" placeholder="Search customer name or Gmail" oninput="filterSupportCustomers()">
  <div id="supportCustomerList"></div>`,"support_messages",version);
-
  renderSupportCustomers();
-
- if(!supportRefreshTimer){
-  supportRefreshTimer=setInterval(()=>{
-   if(current==="support_messages")refreshSupportMessages();
-  },5000);
- }
+ if(!supportRefreshTimer) supportRefreshTimer=setInterval(()=>{if(current==="support_messages")refreshSupportMessages();},5000);
 }
-
 function makeSupportGroups(){
  const groups={};
- supportMessages.forEach(m=>{
-  (groups[String(m.customer_id)]??=[]).push(m);
- });
+ supportMessages.forEach(m=>{(groups[String(m.customer_id)]??=[]).push(m);});
  window.supportGroups=groups;
  return groups;
 }
-
 function renderSupportCustomers(){
  const box=document.getElementById("supportCustomerList");
  if(!box)return;
-
  const groups=makeSupportGroups();
  const q=(document.getElementById("supportSearch")?.value||"").toLowerCase();
-
- const ids=Object.keys(groups).filter(id=>
-  (String(customerName(id))+" "+customerEmail(id)).toLowerCase().includes(q)
- );
-
+ const ids=Object.keys(groups).filter(id=>(String(customerName(id))+" "+customerEmail(id)).toLowerCase().includes(q));
  box.innerHTML=ids.map(id=>{
-  const msgs=groups[id];
-  const last=msgs[msgs.length-1];
-  const waiting=String(last.status||"").toLowerCase()!=="answered";
-
+  const msgs=groups[id],last=msgs[msgs.length-1];
+  const waiting=String(last.sender_role||last.sender||"").toLowerCase()!=="admin";
   return `<div class="customer" onclick="openSupportChat('${esc(id)}')">
-   <b>${esc(customerName(id))}</b><br>
-   <span class="click-customer">${esc(customerEmail(id))}</span>
+   <b>${esc(customerName(id))}</b><br><span class="click-customer">${esc(customerEmail(id))}</span>
    <p class="muted">${msgs.length} messages · Latest: ${esc(last.message||"")}</p>
-   <b>${waiting?"Waiting for admin reply":"Replied"}</b>
+   <b>${waiting?"Waiting for admin reply":"Admin replied"}</b>
   </div>`;
  }).join("")||"No customer messages.";
 }
-
-function filterSupportCustomers(){
- renderSupportCustomers();
-}
-
+function filterSupportCustomers(){renderSupportCustomers();}
 async function refreshSupportMessages(force=false){
  if(current!=="support_messages"||supportRefreshing)return;
-
  supportRefreshing=true;
-
  try{
-  const r=await db.from("support_messages")
-   .select("*")
-   .order("created_at",{ascending:true})
-   .limit(1000);
-
+  const r=await db.from("support_chat_messages").select("*").order("created_at",{ascending:true}).limit(1000);
   if(r.error)throw r.error;
-
-  const newMessages=r.data||[];
-  const signature=JSON.stringify(newMessages);
-
+  const next=r.data||[],signature=JSON.stringify(next);
   if(force||signature!==supportLastSignature){
-   supportMessages=newMessages;
-   supportLastSignature=signature;
-   makeSupportGroups();
-
-   if(activeSupportCustomerId){
-    openSupportChat(activeSupportCustomerId,true);
-   }else{
-    renderSupportCustomers();
-   }
+   supportMessages=next;supportLastSignature=signature;makeSupportGroups();
+   if(activeSupportCustomerId)openSupportChat(activeSupportCustomerId,true);else renderSupportCustomers();
   }
- }catch(e){
-  console.error("Customer Service refresh:",e.message);
- }finally{
-  supportRefreshing=false;
- }
+ }catch(e){console.error("Customer Service refresh:",e.message);}
+ finally{supportRefreshing=false;}
 }
-
-function openSupportChat(customerId,preserveDrafts=false){
- const drafts={};
-
- if(preserveDrafts){
-  document.querySelectorAll("textarea[id^='reply_']").forEach(el=>{
-   drafts[el.id]=el.value;
-  });
- }
-
+function openSupportChat(customerId,preserveDraft=false){
+ const draft=document.getElementById("supportReply")?.value||"";
  activeSupportCustomerId=String(customerId);
  const messages=window.supportGroups?.[activeSupportCustomerId]||[];
-
  putContent(`<button class="gray" onclick="supportPage()">← Back to Customers</button>
- <div class="panel">
-  <h2>${esc(customerName(customerId))}</h2>
-  <p>Gmail: ${esc(customerEmail(customerId))}</p>
-  <button onclick="openCustomerProfile('${esc(customerId)}')">Open Customer Full Profile</button>
- </div>
- <div class="panel">
-  <h3>Chat Messages</h3>
-  <div id="supportChatMessages"></div>
- </div>`,"support_messages",pageVersion);
-
+ <div class="panel"><h2>${esc(customerName(customerId))}</h2><p>Gmail: ${esc(customerEmail(customerId))}</p>
+ <button onclick="openCustomerProfile('${esc(customerId)}')">Open Customer Full Profile</button></div>
+ <div class="panel"><h3>Chat Messages</h3><div id="supportChatMessages"></div></div>
+ <div class="panel"><label>Write Admin Message</label>
+ <textarea id="supportReply" placeholder="Write your reply...">${preserveDraft?esc(draft):""}</textarea>
+ <button class="green" id="sendSupportReply" onclick="sendReply()">Send Reply</button></div>`,"support_messages",pageVersion);
  const box=document.getElementById("supportChatMessages");
  if(!box)return;
-
  box.innerHTML=messages.map(m=>{
-  const answered=String(m.status||"").toLowerCase()==="answered";
-  const busy=sendingReplyIds.has(String(m.id));
-
-  return `
-   <div class="chat-bubble chat-customer">
-    <div class="chat-meta">Customer · ${esc(m.created_at||"")}</div>
-    <b>${esc(customerName(customerId))}</b>
-    <p>${esc(m.message)}</p>
-   </div>
-
-   ${m.reply?`
-    <div class="chat-bubble chat-admin">
-     <div class="chat-meta">${answered?"Admin Reply":"Automatic Reply"}</div>
-     <p>${esc(m.reply)}</p>
-    </div>
-   `:""}
-
-   ${!answered?`
-    <div class="panel">
-     <label>Write Admin Message</label>
-     <textarea id="reply_${esc(m.id)}" placeholder="Write your reply..."></textarea>
-     <button class="green" id="sendReply_${esc(m.id)}"
-      ${busy?"disabled":""}
-      onclick="sendReply('${esc(m.id)}')">
-      ${busy?"Sending...":"Send Reply"}
-     </button>
-    </div>
-   `:""}
-  `;
+  const role=String(m.sender_role||m.sender||"customer").toLowerCase();
+  const admin=role==="admin";
+  return `<div class="chat-bubble ${admin?"chat-admin":"chat-customer"}">
+   <div class="chat-meta">${admin?"Admin":"Customer"} · ${esc(m.created_at||"")}</div>
+   <p>${esc(m.message||"")}</p></div>`;
  }).join("")||"No messages.";
-
- if(preserveDrafts){
-  Object.entries(drafts).forEach(([id,value])=>{
-   const el=document.getElementById(id);
-   if(el)el.value=value;
-  });
- }
 }
-
-async function sendReply(id){
- id=String(id);
-
- if(sendingReplyIds.has(id))return;
-
- const el=document.getElementById("reply_"+id);
- const btn=document.getElementById("sendReply_"+id);
-
- if(!el||!el.value.trim())return note("Reply likhein.",true);
-
+async function sendReply(){
+ const customerId=activeSupportCustomerId;
+ const el=document.getElementById("supportReply"),btn=document.getElementById("sendSupportReply");
+ if(!customerId||!el||!el.value.trim())return note("Reply likhein.",true);
+ if(sendingReplyIds.has(customerId))return;
  const message=el.value.trim();
-
- sendingReplyIds.add(id);
-
- if(btn){
-  btn.disabled=true;
-  btn.textContent="Sending...";
- }
-
+ sendingReplyIds.add(customerId);
+ if(btn){btn.disabled=true;btn.textContent="Sending...";}
  try{
-  const r=await db.from("support_messages")
-   .update({
-    reply:message,
-    status:"answered"
-   })
-   .eq("id",id)
-   .select("id")
-   .maybeSingle();
-
+  const r=await db.from("support_chat_messages").insert({customer_id:customerId,sender:"admin",sender_role:"admin",message});
   if(r.error)throw r.error;
-  if(!r.data)throw new Error("Reply save nahi hua. Database permission check karein.");
-
-  note("Admin reply successfully save ho gaya.");
-
-  const refreshed=await db.from("support_messages")
-   .select("*")
-   .order("created_at",{ascending:true})
-   .limit(1000);
-
+  note("Admin message successfully send ho gaya.");
+  const refreshed=await db.from("support_chat_messages").select("*").order("created_at",{ascending:true}).limit(1000);
   if(refreshed.error)throw refreshed.error;
-
-  supportMessages=refreshed.data||[];
-  supportLastSignature=JSON.stringify(supportMessages);
-  makeSupportGroups();
-
-  const cid=activeSupportCustomerId;
-  if(current==="support_messages"&&cid){
-   openSupportChat(cid,false);
-  }
-
- }catch(e){
-  note("Reply error: "+e.message,true);
-  if(btn){
-   btn.disabled=false;
-   btn.textContent="Send Reply";
-  }
- }finally{
-  sendingReplyIds.delete(id);
- }
+  supportMessages=refreshed.data||[];supportLastSignature=JSON.stringify(supportMessages);makeSupportGroups();
+  if(current==="support_messages"&&activeSupportCustomerId===customerId)openSupportChat(customerId,false);
+ }catch(e){note("Message error: "+e.message,true);if(btn){btn.disabled=false;btn.textContent="Send Reply";}}
+ finally{sendingReplyIds.delete(customerId);}
 }
 
 /* NOTIFICATIONS */
