@@ -37,7 +37,7 @@ button:disabled{opacity:.6;cursor:wait}
 hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 .stat{background:#f1f6ff;padding:16px;border-radius:10px;margin:10px 0}
 .stat strong{display:block;font-size:22px;color:#1769d2;margin-top:7px}
-.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:100;background:white;box-shadow:0 -3px 18px #142b5020;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));padding:7px 3px calc(7px + env(safe-area-inset-bottom))}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:100;background:white;box-shadow:0 -3px 18px #142b5020;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding:7px 3px calc(7px + env(safe-area-inset-bottom))}
 .bottom-nav button{background:white;color:#53647b;border-radius:8px;margin:0;padding:9px 1px;font-size:11px;min-width:0}
 .bottom-nav button.active{background:#e8f1ff;color:#1769d2}
 .bottom-nav span{display:block;font-size:18px;margin-bottom:4px}
@@ -52,6 +52,7 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 </style>
 </head>
 <body>
+
 <header>
 <h1>Smart Seller</h1>
 <p>Customer Dashboard</p>
@@ -104,25 +105,28 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 <div id="dashboard" class="hidden">
 <div id="welcome" class="note"></div>
 
+<!-- SHOP -->
 <section id="shopPage" class="page">
 <h2>Shop</h2>
 <p class="note">Browse available products.</p>
 <div id="shopList">Loading products...</div>
-<button onclick="loadShop()">Refresh Shop</button>
+<button type="button" onclick="loadShop()">Refresh Shop</button>
 </section>
 
+<!-- PRODUCTS -->
 <section id="productsPage" class="page hidden">
 <h2>My Products</h2>
 <p class="note">Products you have selected.</p>
 <div id="myProductsList">Loading...</div>
-<button onclick="loadMyProducts()">Refresh Products</button>
+<button type="button" onclick="loadMyProducts()">Refresh Products</button>
 </section>
 
+<!-- ORDERS -->
 <section id="ordersPage" class="page hidden">
 <h2>My Orders</h2>
 <p class="note">Orders sent to you by the admin.</p>
 <div id="ordersList">Loading orders...</div>
-<button onclick="loadOrders()">Refresh Orders</button>
+<button type="button" onclick="loadOrders()">Refresh Orders</button>
 </section>
 
 <!-- WALLET -->
@@ -133,6 +137,7 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 <div class="stat">Applied Balance<strong id="walletApplied">$0.00</strong></div>
 <p id="walletMessage" class="message"></p>
 <hr>
+
 <h3>Withdraw</h3>
 <p class="small">Click Withdraw and select your withdrawal method.</p>
 <button id="withdrawOpenButton" type="button" onclick="openWithdrawOptions()">Withdraw</button>
@@ -176,6 +181,7 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 <!-- PROFILE -->
 <section id="profilePage" class="page hidden">
 <h2>My Profile</h2>
+
 <div class="data-card">
 <p><strong>Name:</strong> <span id="profileName">-</span></p>
 <p><strong>Email:</strong> <span id="profileEmail">-</span></p>
@@ -184,6 +190,7 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 </div>
 
 <div id="verificationStatus" class="status pending">Verification pending</div>
+
 <div id="kycSection">
 <h3>Complete KYC</h3>
 <p class="note">Please submit your identity document.</p>
@@ -201,14 +208,13 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 </div>
 
 <hr>
-<button class="logout" type="button" onclick="logout()">Logout</button>
-</section>
 
-<!-- SEPARATE SUPPORT PAGE -->
-<section id="supportPage" class="page hidden">
-<h2>Customer Support</h2>
-<p class="note">Send a message to Customer Service and check the admin's reply.</p>
+<!-- CUSTOMER SERVICE INSIDE PROFILE -->
+<h3>Customer Service</h3>
+<p class="small">Contact Customer Service and check the admin's reply.</p>
+<button type="button" onclick="openCustomerService()">Customer Service</button>
 
+<div id="customerServiceSection" class="hidden">
 <div class="data-card">
 <h3>Send Message</h3>
 <form id="supportForm">
@@ -223,6 +229,10 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 <p class="small">Your messages and Customer Service replies appear here.</p>
 <div id="supportList">Loading messages...</div>
 <button type="button" onclick="loadSupport()">Refresh Messages</button>
+</div>
+
+<hr>
+<button class="logout" type="button" onclick="logout()">Logout</button>
 </section>
 
 </div>
@@ -230,14 +240,13 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 </div>
 </main>
 
-<!-- SIX DASHBOARD BUTTONS -->
+<!-- ONLY FIVE DASHBOARD BUTTONS -->
 <nav id="bottomNav" class="bottom-nav hidden">
 <button class="active" data-page="shop" onclick="openPage('shop')"><span>🏪</span>Shop</button>
 <button data-page="products" onclick="openPage('products')"><span>📦</span>Products</button>
 <button data-page="orders" onclick="openPage('orders')"><span>🧾</span>Orders</button>
 <button data-page="wallet" onclick="openPage('wallet')"><span>💰</span>Wallet</button>
 <button data-page="profile" onclick="openPage('profile')"><span>👤</span>Profile</button>
-<button data-page="support" onclick="openPage('support')"><span>💬</span>Support</button>
 </nav>
 
 <script>
@@ -256,6 +265,7 @@ function safeText(v){return v===null||v===undefined||v===""?"-":String(v);}
 function hideForms(){
 ["loginForm","registerForm","forgotForm","newPasswordForm"].forEach(id=>$(id).classList.add("hidden"));
 }
+
 window.showLogin=function(){
 hideForms();
 $("loginForm").classList.remove("hidden");
@@ -263,6 +273,7 @@ $("loginTab").classList.add("active");
 $("registerTab").classList.remove("active");
 msg("");
 };
+
 window.showRegister=function(){
 hideForms();
 $("registerForm").classList.remove("hidden");
@@ -270,12 +281,14 @@ $("registerTab").classList.add("active");
 $("loginTab").classList.remove("active");
 msg("");
 };
+
 window.showForgot=function(){
 hideForms();
 $("forgotForm").classList.remove("hidden");
 $("resetEmail").value=$("loginIdentity").value.trim();
 msg("");
 };
+
 function showNewPassword(){
 $("authArea").classList.remove("hidden");
 $("dashboard").classList.add("hidden");
@@ -288,19 +301,40 @@ msg("Enter your new password.");
 // REGISTER
 $("registerForm").addEventListener("submit",async e=>{
 e.preventDefault();
+
 const name=$("fullName").value.trim();
 const email=$("registerEmail").value.trim();
 const phone=$("registerPhone").value.trim();
 const password=$("registerPassword").value;
-if(password!==$("confirmPassword").value){msg("Passwords do not match.");return;}
+
+if(password!==$("confirmPassword").value){
+msg("Passwords do not match.");
+return;
+}
+
 $("registerButton").disabled=true;
 msg("Creating account...");
+
 try{
-const {data,error}=await db.auth.signUp({email,password,options:{data:{full_name:name,phone}}});
+const {data,error}=await db.auth.signUp({
+email,
+password,
+options:{data:{full_name:name,phone}}
+});
+
 if(error)throw error;
-if(data.session)await loadDashboard(data.session.user);
-else{$("registerForm").reset();showLogin();msg("Account created. Verify your email, then login.");}
-}catch(err){msg("Registration error: "+err.message);}
+
+if(data.session){
+await loadDashboard(data.session.user);
+}else{
+$("registerForm").reset();
+showLogin();
+msg("Account created. Verify your email, then login.");
+}
+}catch(err){
+msg("Registration error: "+err.message);
+}
+
 $("registerButton").disabled=false;
 });
 
@@ -309,14 +343,20 @@ $("loginForm").addEventListener("submit",async e=>{
 e.preventDefault();
 $("loginButton").disabled=true;
 msg("Logging in...");
+
 try{
 const {data,error}=await db.auth.signInWithPassword({
 email:$("loginIdentity").value.trim(),
 password:$("loginPassword").value
 });
+
 if(error)throw error;
 await loadDashboard(data.user);
-}catch(err){msg("Login error: "+err.message);}
+
+}catch(err){
+msg("Login error: "+err.message);
+}
+
 $("loginButton").disabled=false;
 });
 
@@ -325,160 +365,291 @@ $("forgotForm").addEventListener("submit",async e=>{
 e.preventDefault();
 $("resetButton").disabled=true;
 msg("Sending reset link...");
+
 try{
-const {error}=await db.auth.resetPasswordForEmail($("resetEmail").value.trim(),{
+const {error}=await db.auth.resetPasswordForEmail(
+$("resetEmail").value.trim(),
+{
 redirectTo:"https://jackijamal1142-create.github.io/smart-seller-shop/"
-});
+}
+);
+
 if(error)throw error;
 msg("Password reset link sent. Check your email.");
-}catch(err){msg("Reset error: "+err.message);}
+
+}catch(err){
+msg("Reset error: "+err.message);
+}
+
 $("resetButton").disabled=false;
 });
 
 // UPDATE PASSWORD
 $("newPasswordForm").addEventListener("submit",async e=>{
 e.preventDefault();
+
 const password=$("newPassword").value;
-if(password!==$("confirmNewPassword").value){msg("Passwords do not match.");return;}
+
+if(password!==$("confirmNewPassword").value){
+msg("Passwords do not match.");
+return;
+}
+
 $("updatePasswordButton").disabled=true;
+
 try{
 const {error}=await db.auth.updateUser({password});
 if(error)throw error;
+
 await db.auth.signOut();
 $("newPasswordForm").reset();
 showLogin();
 msg("Password updated. Please login.");
-}catch(err){msg("Password error: "+err.message);}
+
+}catch(err){
+msg("Password error: "+err.message);
+}
+
 $("updatePasswordButton").disabled=false;
 });
 
 // LOAD DASHBOARD
 async function loadDashboard(user){
 currentUser=user;
+
 $("authArea").classList.add("hidden");
 $("dashboard").classList.remove("hidden");
 $("bottomNav").classList.remove("hidden");
+
 $("welcome").textContent="Welcome, "+(user.user_metadata?.full_name||user.email);
+
 await loadProfile();
 openPage("shop");
 }
 
-// NAVIGATION
+// NAVIGATION - ONLY FIVE PAGES
 window.openPage=function(page){
-["shop","products","orders","wallet","profile","support"].forEach(p=>{
+
+["shop","products","orders","wallet","profile"].forEach(p=>{
 $(p+"Page").classList.toggle("hidden",p!==page);
 });
+
 document.querySelectorAll(".bottom-nav button").forEach(b=>{
 b.classList.toggle("active",b.dataset.page===page);
 });
+
 if(page==="shop")loadShop();
 if(page==="products")loadMyProducts();
 if(page==="orders")loadOrders();
-if(page==="wallet"){loadWallet();loadWithdrawals();resetWithdrawScreen();}
-if(page==="profile"){loadProfile();loadKyc(currentUser);}
-if(page==="support")loadSupport();
+
+if(page==="wallet"){
+loadWallet();
+loadWithdrawals();
+resetWithdrawScreen();
+}
+
+if(page==="profile"){
+loadProfile();
+loadKyc(currentUser);
+$("customerServiceSection").classList.add("hidden");
+}
 };
 
 // SHOP
 window.loadShop=async function(){
 const box=$("shopList");
 box.textContent="Loading products...";
+
 try{
-const {data,error}=await db.from("products").select("id,name,price,category").order("id",{ascending:false});
+const {data,error}=await db.from("products")
+.select("id,name,price,category")
+.order("id",{ascending:false});
+
 if(error)throw error;
-if(!data||!data.length){box.textContent="No products available.";return;}
+
+if(!data||!data.length){
+box.textContent="No products available.";
+return;
+}
+
 box.innerHTML="";
+
 data.forEach(p=>{
-const card=document.createElement("div");card.className="product-card";
-const title=document.createElement("h3");title.textContent=p.name||"Product";
-const cat=document.createElement("p");cat.textContent=p.category||"";
-const price=document.createElement("p");price.className="product-price";price.textContent=money(p.price);
-const btn=document.createElement("button");btn.textContent="Add to My Products";
+const card=document.createElement("div");
+card.className="product-card";
+
+const title=document.createElement("h3");
+title.textContent=p.name||"Product";
+
+const cat=document.createElement("p");
+cat.textContent=p.category||"";
+
+const price=document.createElement("p");
+price.className="product-price";
+price.textContent=money(p.price);
+
+const btn=document.createElement("button");
+btn.textContent="Add to My Products";
 btn.onclick=()=>addProduct(p);
-card.append(title,cat,price,btn);box.appendChild(card);
+
+card.append(title,cat,price,btn);
+box.appendChild(card);
 });
-}catch(err){box.textContent="Shop error: "+err.message;}
+
+}catch(err){
+box.textContent="Shop error: "+err.message;
+}
 };
 
 // ADD PRODUCT
 async function addProduct(p){
 try{
 const {error}=await db.from("customer_products").insert({
-customer_id:currentUser.id,product_id:String(p.id),
-product_name:p.name||"Product",price:Number(p.price||0),category:p.category||""
+customer_id:currentUser.id,
+product_id:String(p.id),
+product_name:p.name||"Product",
+price:Number(p.price||0),
+category:p.category||""
 });
+
 if(error)throw error;
+
 alert("Product added successfully.");
 await loadMyProducts();
-}catch(err){alert("Add product error: "+err.message);}
+
+}catch(err){
+alert("Add product error: "+err.message);
+}
 }
 
 // MY PRODUCTS
 window.loadMyProducts=async function(){
 const box=$("myProductsList");
 box.textContent="Loading...";
+
 try{
-const {data,error}=await db.from("customer_products").select("*")
-.eq("customer_id",currentUser.id).order("created_at",{ascending:false});
+const {data,error}=await db.from("customer_products")
+.select("*")
+.eq("customer_id",currentUser.id)
+.order("created_at",{ascending:false});
+
 if(error)throw error;
-if(!data||!data.length){box.textContent="You have not added any products yet.";return;}
+
+if(!data||!data.length){
+box.textContent="You have not added any products yet.";
+return;
+}
+
 box.innerHTML="";
+
 data.forEach(p=>{
-const card=document.createElement("div");card.className="product-card";
-const title=document.createElement("h3");title.textContent=p.product_name||"Product";
-const price=document.createElement("p");price.className="product-price";price.textContent=money(p.price);
-const cat=document.createElement("p");cat.textContent=p.category||"";
-card.append(title,cat,price);box.appendChild(card);
+const card=document.createElement("div");
+card.className="product-card";
+
+const title=document.createElement("h3");
+title.textContent=p.product_name||"Product";
+
+const price=document.createElement("p");
+price.className="product-price";
+price.textContent=money(p.price);
+
+const cat=document.createElement("p");
+cat.textContent=p.category||"";
+
+card.append(title,cat,price);
+box.appendChild(card);
 });
-}catch(err){box.textContent="Products error: "+err.message;}
+
+}catch(err){
+box.textContent="Products error: "+err.message;
+}
 };
 
 // ORDERS
 window.loadOrders=async function(){
 const box=$("ordersList");
 box.textContent="Loading orders...";
+
 try{
-const {data,error}=await db.from("orders").select("*")
-.eq("customer_id",currentUser.id).order("created_at",{ascending:false});
+const {data,error}=await db.from("orders")
+.select("*")
+.eq("customer_id",currentUser.id)
+.order("created_at",{ascending:false});
+
 if(error)throw error;
-if(!data||!data.length){box.textContent="No orders yet.";return;}
+
+if(!data||!data.length){
+box.textContent="No orders yet.";
+return;
+}
+
 box.innerHTML="";
+
 data.forEach(o=>{
-const card=document.createElement("div");card.className="data-card";
+const card=document.createElement("div");
+card.className="data-card";
+
 const title=document.createElement("h3");
 title.textContent=o.product_name||o.products_name||o["products name"]||"Order";
-const quantity=document.createElement("p");quantity.textContent="Quantity: "+safeText(o.quantity);
-const amount=document.createElement("p");amount.textContent="Amount: "+money(o.total_amount??o["total amount"]??o.amount);
-const status=document.createElement("p");status.textContent="Status: "+safeText(o.status);
-card.append(title,quantity,amount,status);box.appendChild(card);
+
+const quantity=document.createElement("p");
+quantity.textContent="Quantity: "+safeText(o.quantity);
+
+const amount=document.createElement("p");
+amount.textContent="Amount: "+money(o.total_amount??o["total amount"]??o.amount);
+
+const status=document.createElement("p");
+status.textContent="Status: "+safeText(o.status);
+
+card.append(title,quantity,amount,status);
+box.appendChild(card);
 });
-}catch(err){box.textContent="Orders error: "+err.message;}
+
+}catch(err){
+box.textContent="Orders error: "+err.message;
+}
 };
 
 // WALLET
 window.loadWallet=async function(){
 $("walletMessage").textContent="Loading wallet transactions...";
+
 try{
 const {data,error}=await db.from("wallet_transactions")
 .select("amount,transaction_type,status,description,created_at")
 .eq("customer_id",currentUser.id);
+
 if(error)throw error;
+
 let available=0,profit=0,applied=0;
+
 (data||[]).forEach(t=>{
 const type=String(t.transaction_type||"").toLowerCase();
 const status=String(t.status||"").toLowerCase();
 const amount=Number(t.amount||0);
+
 if(!["approved","completed","success","successful","paid"].includes(status))return;
-if(type.includes("profit")){profit+=amount;available+=amount;}
-else if(type.includes("applied")){applied+=amount;}
-else if(type.includes("withdraw")||type.includes("debit")||type.includes("payment")||type.includes("purchase")){available-=amount;}
-else if(type.includes("credit")||type.includes("deposit")||type.includes("add")||type.includes("income")||type.includes("earning")){available+=amount;}
+
+if(type.includes("profit")){
+profit+=amount;
+available+=amount;
+}else if(type.includes("applied")){
+applied+=amount;
+}else if(type.includes("withdraw")||type.includes("debit")||type.includes("payment")||type.includes("purchase")){
+available-=amount;
+}else if(type.includes("credit")||type.includes("deposit")||type.includes("add")||type.includes("income")||type.includes("earning")){
+available+=amount;
+}
 });
+
 $("walletBalance").textContent=money(available);
 $("walletProfit").textContent=money(profit);
 $("walletApplied").textContent=money(applied);
 $("walletMessage").textContent="Wallet transaction records loaded.";
-}catch(err){$("walletMessage").textContent="Wallet error: "+err.message;}
+
+}catch(err){
+$("walletMessage").textContent="Wallet error: "+err.message;
+}
 };
 
 // WITHDRAWAL SCREEN
@@ -489,6 +660,7 @@ $("bankForm").classList.add("hidden");
 $("withdrawOpenButton").classList.remove("hidden");
 $("withdrawMessage").textContent="";
 };
+
 window.openWithdrawOptions=function(){
 $("withdrawOpenButton").classList.add("hidden");
 $("withdrawOptions").classList.remove("hidden");
@@ -496,7 +668,11 @@ $("usdtForm").classList.add("hidden");
 $("bankForm").classList.add("hidden");
 $("withdrawMessage").textContent="";
 };
-window.closeWithdraw=function(){resetWithdrawScreen();};
+
+window.closeWithdraw=function(){
+resetWithdrawScreen();
+};
+
 window.showWithdraw=function(method){
 $("withdrawOptions").classList.add("hidden");
 $("withdrawOpenButton").classList.add("hidden");
@@ -504,6 +680,7 @@ $("usdtForm").classList.toggle("hidden",method!=="usdt");
 $("bankForm").classList.toggle("hidden",method!=="bank");
 $("withdrawMessage").textContent="";
 };
+
 window.backToMethods=function(){
 $("usdtForm").classList.add("hidden");
 $("bankForm").classList.add("hidden");
@@ -513,53 +690,84 @@ $("withdrawOptions").classList.remove("hidden");
 // USDT WITHDRAWAL
 $("usdtForm").addEventListener("submit",async e=>{
 e.preventDefault();
+
 const amount=Number($("usdtAmount").value);
 const address=$("usdtAddress").value.trim();
+
 if(!address||!Number.isFinite(amount)||amount<=0){
-$("withdrawMessage").textContent="Enter a valid USDT address and amount.";return;
+$("withdrawMessage").textContent="Enter a valid USDT address and amount.";
+return;
 }
+
 $("usdtSubmit").disabled=true;
 $("withdrawMessage").textContent="Submitting request...";
+
 try{
 const {error}=await db.from("withdrawals").insert({
-customer_id:currentUser.id,amount:amount,method:"USDT",
-account_details:JSON.stringify({usdt_address:address}),status:"Pending"
+customer_id:currentUser.id,
+amount:amount,
+method:"USDT",
+account_details:JSON.stringify({usdt_address:address}),
+status:"Pending"
 });
+
 if(error)throw error;
+
 $("usdtForm").reset();
 $("withdrawMessage").textContent="USDT withdrawal request submitted. Status: Pending.";
+
 await loadWithdrawals();
 resetWithdrawScreen();
-}catch(err){$("withdrawMessage").textContent="Withdrawal error: "+err.message;}
+
+}catch(err){
+$("withdrawMessage").textContent="Withdrawal error: "+err.message;
+}
+
 $("usdtSubmit").disabled=false;
 });
 
 // BANK WITHDRAWAL
 $("bankForm").addEventListener("submit",async e=>{
 e.preventDefault();
+
 const amount=Number($("bankAmount").value);
+
 const details={
 account_name:$("bankAccountName").value.trim(),
 bank_name:$("bankName").value.trim(),
 iban:$("bankIban").value.trim(),
 account_number:$("bankAccountNumber").value.trim()
 };
+
 if(!details.account_name||!details.bank_name||!details.iban||!details.account_number||!Number.isFinite(amount)||amount<=0){
-$("withdrawMessage").textContent="Please complete all bank details and enter a valid amount.";return;
+$("withdrawMessage").textContent="Please complete all bank details and enter a valid amount.";
+return;
 }
+
 $("bankSubmit").disabled=true;
 $("withdrawMessage").textContent="Submitting request...";
+
 try{
 const {error}=await db.from("withdrawals").insert({
-customer_id:currentUser.id,amount:amount,method:"Bank Account",
-account_details:JSON.stringify(details),status:"Pending"
+customer_id:currentUser.id,
+amount:amount,
+method:"Bank Account",
+account_details:JSON.stringify(details),
+status:"Pending"
 });
+
 if(error)throw error;
+
 $("bankForm").reset();
 $("withdrawMessage").textContent="Bank withdrawal request submitted. Status: Pending.";
+
 await loadWithdrawals();
 resetWithdrawScreen();
-}catch(err){$("withdrawMessage").textContent="Withdrawal error: "+err.message;}
+
+}catch(err){
+$("withdrawMessage").textContent="Withdrawal error: "+err.message;
+}
+
 $("bankSubmit").disabled=false;
 });
 
@@ -567,48 +775,88 @@ $("bankSubmit").disabled=false;
 window.loadWithdrawals=async function(){
 const box=$("withdrawalHistory");
 box.textContent="Loading...";
+
 try{
-const {data,error}=await db.from("withdrawals").select("*")
-.eq("customer_id",currentUser.id).order("created_at",{ascending:false});
+const {data,error}=await db.from("withdrawals")
+.select("*")
+.eq("customer_id",currentUser.id)
+.order("created_at",{ascending:false});
+
 if(error)throw error;
-if(!data||!data.length){box.textContent="No withdrawal requests yet.";return;}
+
+if(!data||!data.length){
+box.textContent="No withdrawal requests yet.";
+return;
+}
+
 box.innerHTML="";
+
 data.forEach(w=>{
-const card=document.createElement("div");card.className="data-card";
-const method=document.createElement("strong");method.textContent=w.method||"Withdrawal";
-const amount=document.createElement("p");amount.textContent="Amount: "+money(w.amount);
-const status=document.createElement("p");status.textContent="Status: "+(w.status||"Pending");
-const note=document.createElement("p");note.textContent=w.admin_note?"Admin note: "+w.admin_note:"";
-card.append(method,amount,status,note);box.appendChild(card);
+const card=document.createElement("div");
+card.className="data-card";
+
+const method=document.createElement("strong");
+method.textContent=w.method||"Withdrawal";
+
+const amount=document.createElement("p");
+amount.textContent="Amount: "+money(w.amount);
+
+const status=document.createElement("p");
+status.textContent="Status: "+(w.status||"Pending");
+
+const note=document.createElement("p");
+note.textContent=w.admin_note?"Admin note: "+w.admin_note:"";
+
+card.append(method,amount,status,note);
+box.appendChild(card);
 });
-}catch(err){box.textContent="Withdrawal history error: "+err.message;}
+
+}catch(err){
+box.textContent="Withdrawal history error: "+err.message;
+}
 };
 
 // PROFILE
 async function loadProfile(){
 if(!currentUser)return;
+
 $("profileEmail").textContent=currentUser.email||"-";
 $("profileName").textContent=currentUser.user_metadata?.full_name||"-";
 $("profilePhone").textContent=currentUser.user_metadata?.phone||"-";
 $("profileCredit").textContent="-";
+
 try{
-const {data,error}=await db.from("profiles").select("*").eq("id",currentUser.id).maybeSingle();
+const {data,error}=await db.from("profiles")
+.select("*")
+.eq("id",currentUser.id)
+.maybeSingle();
+
 if(error)throw error;
+
 if(data){
 $("profileName").textContent=data.full_name||currentUser.user_metadata?.full_name||"-";
 $("profilePhone").textContent=data.phone||currentUser.user_metadata?.phone||"-";
 $("profileCredit").textContent=safeText(data.credit_score);
 }
-}catch(err){console.error("Profile load:",err.message);}
+
+}catch(err){
+console.error("Profile load:",err.message);
+}
 }
 
 // KYC
 async function loadKyc(user){
 if(!user)return;
+
 try{
-const {data,error}=await db.from("kyc_submissions").select("status,created_at")
-.eq("customer_id",user.id).order("created_at",{ascending:false}).limit(1);
+const {data,error}=await db.from("kyc_submissions")
+.select("status,created_at")
+.eq("customer_id",user.id)
+.order("created_at",{ascending:false})
+.limit(1);
+
 if(error)throw error;
+
 if(data&&data.length&&String(data[0].status).trim().toLowerCase()==="approved"){
 $("verificationStatus").textContent="Verified";
 $("verificationStatus").classList.remove("pending");
@@ -619,6 +867,7 @@ $("verificationStatus").classList.add("pending");
 $("kycSection").classList.remove("hidden");
 $("kycStatus").textContent=data&&data.length?"Your KYC is pending approval.":"";
 }
+
 }catch(err){
 $("verificationStatus").textContent="Verification status unavailable";
 $("kycSection").classList.remove("hidden");
@@ -629,59 +878,98 @@ $("kycStatus").textContent="KYC error: "+err.message;
 // KYC SUBMISSION
 $("kycForm").addEventListener("submit",async e=>{
 e.preventDefault();
+
 $("kycButton").disabled=true;
 $("kycStatus").textContent="Uploading document...";
+
 try{
 const file=$("kycFile").files[0];
 const type=$("documentType").value;
+
 if(!file||!type)throw new Error("Select a document and file.");
 if(file.size>5*1024*1024)throw new Error("File must be smaller than 5 MB.");
+
 const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
 const path=currentUser.id+"/"+Date.now()+"_"+safeName;
+
 const {error:uploadError}=await db.storage.from("kyc-documents").upload(path,file);
 if(uploadError)throw uploadError;
+
 const {error}=await db.from("kyc_submissions").insert({
-customer_id:currentUser.id,document_type:type,document_url:path,status:"Pending"
+customer_id:currentUser.id,
+document_type:type,
+document_url:path,
+status:"Pending"
 });
+
 if(error)throw error;
+
 $("kycForm").reset();
 await loadKyc(currentUser);
 $("kycStatus").textContent="KYC submitted successfully.";
-}catch(err){$("kycStatus").textContent="KYC error: "+err.message;}
+
+}catch(err){
+$("kycStatus").textContent="KYC error: "+err.message;
+}
+
 $("kycButton").disabled=false;
 });
 
-// CUSTOMER SUPPORT - SEPARATE PAGE
+// CUSTOMER SERVICE BUTTON INSIDE PROFILE
+window.openCustomerService=function(){
+const section=$("customerServiceSection");
+section.classList.toggle("hidden");
+
+if(!section.classList.contains("hidden")){
+loadSupport();
+}
+};
+
+// LOAD CUSTOMER SERVICE MESSAGES
 window.loadSupport=async function(){
 if(!currentUser)return;
+
 const box=$("supportList");
 box.textContent="Loading messages...";
+
 try{
-const {data,error}=await db.from("support_messages").select("*")
-.eq("customer_id",currentUser.id).order("created_at",{ascending:true});
+const {data,error}=await db.from("support_messages")
+.select("*")
+.eq("customer_id",currentUser.id)
+.order("created_at",{ascending:true});
+
 if(error)throw error;
+
 if(!data||!data.length){
 box.textContent="No messages yet. Send a message to Customer Service.";
 return;
 }
+
 box.innerHTML="";
+
 data.forEach(m=>{
 const sent=document.createElement("div");
 sent.className="chat-message";
+
 const own=document.createElement("strong");
 own.textContent="You";
+
 const body=document.createElement("p");
 body.textContent=m.message||"";
+
 sent.append(own,body);
 box.appendChild(sent);
 
 if(m.reply){
 const reply=document.createElement("div");
 reply.className="chat-reply";
+
 const admin=document.createElement("strong");
 admin.textContent="Customer Service - Admin Reply";
+
 const replyText=document.createElement("p");
 replyText.textContent=m.reply;
+
 reply.append(admin,replyText);
 box.appendChild(reply);
 }else{
@@ -691,55 +979,83 @@ waiting.textContent="Waiting for Customer Service reply.";
 box.appendChild(waiting);
 }
 });
+
 }catch(err){
 box.textContent="Customer Service error: "+err.message;
 }
 };
 
+// SEND CUSTOMER SERVICE MESSAGE
 $("supportForm").addEventListener("submit",async e=>{
 e.preventDefault();
+
 const message=$("supportInput").value.trim();
 if(!message)return;
+
 $("supportButton").disabled=true;
 $("supportMessage").textContent="Sending message...";
+
 try{
 const {error}=await db.from("support_messages").insert({
-customer_id:currentUser.id,message:message,status:"Open"
+customer_id:currentUser.id,
+message:message,
+status:"Open"
 });
+
 if(error)throw error;
+
 $("supportInput").value="";
 $("supportMessage").textContent="Message sent to Customer Service.";
+
 await loadSupport();
+
 }catch(err){
 $("supportMessage").textContent="Message error: "+err.message;
 }
+
 $("supportButton").disabled=false;
 });
 
 // LOGOUT
 window.logout=async function(){
 const {error}=await db.auth.signOut();
-if(error){msg("Logout error: "+error.message);return;}
+
+if(error){
+msg("Logout error: "+error.message);
+return;
+}
+
 currentUser=null;
+
 $("dashboard").classList.add("hidden");
 $("bottomNav").classList.add("hidden");
 $("authArea").classList.remove("hidden");
+
 $("loginForm").reset();
 showLogin();
 };
 
 // PASSWORD RECOVERY
 db.auth.onAuthStateChange((event,session)=>{
-if(event==="PASSWORD_RECOVERY")showNewPassword();
+if(event==="PASSWORD_RECOVERY"){
+showNewPassword();
+}
 });
 
 // CHECK SESSION
 (async()=>{
 try{
 const {data,error}=await db.auth.getSession();
+
 if(error)throw error;
-if(data.session)await loadDashboard(data.session.user);
-}catch(err){msg("Session error: "+err.message);}
+
+if(data.session){
+await loadDashboard(data.session.user);
+}
+
+}catch(err){
+msg("Session error: "+err.message);
+}
 })();
 </script>
 </body>
