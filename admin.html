@@ -175,14 +175,21 @@ async function refreshAdminBadges(){
  try{
   const results=await Promise.all([
    db.from("orders").select("id,status"),
-   db.from("support_chat_messages").select("customer_id,sender,sender_role,created_at").order("created_at",{ascending:false}).limit(1000)
+   db.from("support_chat_messages").select("customer_id,sender,sender_role,created_at").order("created_at",{ascending:true}).limit(2000)
   ]);
   if(results[0].error)throw results[0].error;if(results[1].error)throw results[1].error;
   const pending=(results[0].data||[]).filter(o=>["pending","pickup","picked_up","picked up"].includes(String(o.status||"").toLowerCase())).length;
-  const latest=new Map();(results[1].data||[]).forEach(m=>{const id=String(m.customer_id);if(!latest.has(id))latest.set(id,m)});
-  const waiting=[...latest.values()].filter(m=>String(m.sender_role||m.sender||"").toLowerCase()!=="admin").length;
+  const waitingByCustomer=new Map();
+  (results[1].data||[]).forEach(m=>{
+   const id=String(m.customer_id||"");if(!id)return;
+   const role=String(m.sender_role||m.sender||"").toLowerCase();
+   if(role==="admin")waitingByCustomer.set(id,0);
+   else if(role==="customer")waitingByCustomer.set(id,(waitingByCustomer.get(id)||0)+1);
+  });
+  const waiting=[...waitingByCustomer.values()].reduce((sum,n)=>sum+n,0);
   const ob=document.getElementById("adminOrdersBadge"),mb=document.getElementById("adminMessagesBadge");
-  if(ob)ob.textContent=pending||"";if(mb)mb.textContent=waiting||"";
+  if(ob)ob.textContent=pending?String(pending):"";
+  if(mb){mb.textContent=waiting?String(waiting):"";mb.style.display=waiting?"inline-block":"none";}
  }catch(e){console.warn("Admin notification counts:",e.message)}
 }
 
@@ -191,7 +198,7 @@ async function start(){
  document.getElementById("layout").style.display="flex";
  await go("dashboard",document.querySelector("aside button"));
  await refreshAdminBadges();
- if(!window.adminBadgeTimer)window.adminBadgeTimer=setInterval(refreshAdminBadges,15000);
+ if(!window.adminBadgeTimer)window.adminBadgeTimer=setInterval(refreshAdminBadges,5000);
 }
 async function check(){
  if(!db)return;
@@ -771,6 +778,7 @@ async function supportPage(version=pageVersion){
  <div id="supportCustomerList"></div>`,"support_messages",version);
  renderSupportCustomers();
  if(!supportRefreshTimer) supportRefreshTimer=setInterval(()=>{if(current==="support_messages")refreshSupportMessages();},5000);
+ refreshAdminBadges();
 }
 function makeSupportGroups(){
  const groups={};
@@ -807,7 +815,7 @@ async function refreshSupportMessages(force=false){
    if(activeSupportCustomerId)openSupportChat(activeSupportCustomerId,true);else renderSupportCustomers();
   }
  }catch(e){console.error("Customer Service refresh:",e.message);}
- finally{supportRefreshing=false;}
+ finally{supportRefreshing=false;refreshAdminBadges();}
 }
 function openSupportChat(customerId,preserveDraft=false){
  const draft=document.getElementById("supportReply")?.value||"";
