@@ -731,20 +731,11 @@ window.loadOrders=async function(){
 };
 
 function renderRecentOrders(){
- const box=$("recentOrders");if(!box)return;box.innerHTML="";
- const completedOrders=cachedOrders.filter(o=>orderStatus(o)==="COMPLETE");
+ const box=$("recentOrders");if(!box)return;
+ box.innerHTML="";
+ const completedOrders=cachedOrders.filter(o=>["completed","complete","delivered"].includes(String(o.status||"").toLowerCase().trim()));
  if(!completedOrders.length){box.textContent="No completed orders yet.";return}
- completedOrders.slice(0,3).forEach(o=>{
-  const row=document.createElement("div");row.className="order-row";
-  const left=document.createElement("div");
-  const title=document.createElement("strong");title.textContent="Order";
-  const date=document.createElement("div");date.className="muted";date.textContent=o.created_at?new Date(o.created_at).toLocaleDateString():"";
-  left.append(title,date);
-  const right=document.createElement("div");right.style.textAlign="right";
-  const amount=document.createElement("strong");amount.textContent=money(orderPrice(o));
-  const status=document.createElement("div");status.className="small";status.textContent=orderStatus(o);
-  right.append(amount,status);row.append(left,right);box.appendChild(row);
- });
+ completedOrders.forEach(o=>box.appendChild(makeOrderCard(o)));
 }
 
 window.loadWallet=async function(){
