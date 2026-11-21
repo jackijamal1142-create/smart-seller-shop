@@ -8,7 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box}
-body{margin:0;font-family:Arial,sans-serif;background:#f1f5fb;color:#17243b;padding-bottom:85px}
+body{margin:0;font-family:Arial,sans-serif;background:#f1f5fb;color:#17243b;padding-bottom:90px}
 header{background:#142b50;color:white;text-align:center;padding:19px}
 header h1{margin:0}
 main{max-width:950px;margin:20px auto;padding:12px}
@@ -37,17 +37,17 @@ button:disabled{opacity:.6;cursor:wait}
 hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 .stat{background:#f1f6ff;padding:16px;border-radius:10px;margin:10px 0}
 .stat strong{display:block;font-size:22px;color:#1769d2;margin-top:7px}
-.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:100;background:white;box-shadow:0 -3px 18px #142b5020;display:grid;grid-template-columns:repeat(5,1fr);padding:7px 4px calc(7px + env(safe-area-inset-bottom))}
-.bottom-nav button{background:white;color:#53647b;border-radius:8px;margin:0;padding:9px 2px;font-size:12px}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:100;background:white;box-shadow:0 -3px 18px #142b5020;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));padding:7px 3px calc(7px + env(safe-area-inset-bottom))}
+.bottom-nav button{background:white;color:#53647b;border-radius:8px;margin:0;padding:9px 1px;font-size:11px;min-width:0}
 .bottom-nav button.active{background:#e8f1ff;color:#1769d2}
-.bottom-nav span{display:block;font-size:19px;margin-bottom:4px}
+.bottom-nav span{display:block;font-size:18px;margin-bottom:4px}
 .chat-message{padding:12px;border-radius:10px;background:#f1f6ff;margin:10px 0;overflow-wrap:anywhere}
 .chat-reply{padding:12px;border-radius:10px;background:#e4f8eb;margin:10px 0;overflow-wrap:anywhere}
 @media(max-width:520px){
  main{margin:10px auto;padding:8px}
  .card{padding:14px}
- .bottom-nav button{font-size:10px}
- .bottom-nav span{font-size:18px}
+ .bottom-nav button{font-size:9px}
+ .bottom-nav span{font-size:17px}
 }
 </style>
 </head>
@@ -128,20 +128,15 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 <!-- WALLET -->
 <section id="walletPage" class="page hidden">
 <h2>My Wallet</h2>
-
 <div class="stat">Available Balance<strong id="walletBalance">$0.00</strong></div>
 <div class="stat">Profit<strong id="walletProfit">$0.00</strong></div>
 <div class="stat">Applied Balance<strong id="walletApplied">$0.00</strong></div>
 <p id="walletMessage" class="message"></p>
-
 <hr>
 <h3>Withdraw</h3>
 <p class="small">Click Withdraw and select your withdrawal method.</p>
-
-<!-- FIRST SHOW ONLY WITHDRAW BUTTON -->
 <button id="withdrawOpenButton" type="button" onclick="openWithdrawOptions()">Withdraw</button>
 
-<!-- METHOD SELECTION -->
 <div id="withdrawOptions" class="hidden">
 <h3>Select Withdrawal Method</h3>
 <div class="tabs">
@@ -151,20 +146,16 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 <button type="button" class="secondary" onclick="closeWithdraw()">Back</button>
 </div>
 
-<!-- USDT FORM -->
 <form id="usdtForm" class="hidden">
 <h3>USDT Withdrawal</h3>
-<p class="small">Enter your USDT wallet address and withdrawal amount.</p>
 <input id="usdtAddress" type="text" placeholder="USDT Wallet Address" required>
 <input id="usdtAmount" type="number" min="0.01" step="0.01" placeholder="Withdrawal Amount (USD)" required>
 <button id="usdtSubmit">Submit USDT Withdrawal</button>
 <button type="button" class="secondary" onclick="backToMethods()">Back</button>
 </form>
 
-<!-- BANK FORM -->
 <form id="bankForm" class="hidden">
 <h3>Bank Account Withdrawal</h3>
-<p class="small">Enter your bank account details and withdrawal amount.</p>
 <input id="bankAccountName" type="text" placeholder="Account Holder Name" required>
 <input id="bankName" type="text" placeholder="Bank Name" required>
 <input id="bankIban" type="text" placeholder="IBAN Number" required>
@@ -175,12 +166,11 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 </form>
 
 <p id="withdrawMessage" class="message"></p>
-
 <hr>
 <h3>Withdrawal History</h3>
 <div id="withdrawalHistory">Loading...</div>
 <button type="button" onclick="loadWithdrawals()">Refresh Withdrawal History</button>
-<p class="small">Withdrawal requests are subject to admin review. Submission does not mean payment has been completed.</p>
+<p class="small">Withdrawal requests are subject to admin review.</p>
 </section>
 
 <!-- PROFILE -->
@@ -211,31 +201,43 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 </div>
 
 <hr>
-<h3>Customer Service</h3>
+<button class="logout" type="button" onclick="logout()">Logout</button>
+</section>
+
+<!-- SEPARATE SUPPORT PAGE -->
+<section id="supportPage" class="page hidden">
+<h2>Customer Support</h2>
 <p class="note">Send a message to Customer Service and check the admin's reply.</p>
+
+<div class="data-card">
+<h3>Send Message</h3>
 <form id="supportForm">
 <textarea id="supportInput" placeholder="Write your message here..." required></textarea>
 <button id="supportButton">Send Message</button>
 </form>
 <p id="supportMessage" class="message"></p>
-<h3>Messages</h3>
-<div id="supportList">Loading messages...</div>
-<button onclick="loadSupport()">Refresh Messages</button>
-<hr>
-<button class="logout" type="button" onclick="logout()">Logout</button>
-</section>
 </div>
 
+<hr>
+<h3>My Messages</h3>
+<p class="small">Your messages and Customer Service replies appear here.</p>
+<div id="supportList">Loading messages...</div>
+<button type="button" onclick="loadSupport()">Refresh Messages</button>
+</section>
+
+</div>
 <p id="message" class="message"></p>
 </div>
 </main>
 
+<!-- SIX DASHBOARD BUTTONS -->
 <nav id="bottomNav" class="bottom-nav hidden">
 <button class="active" data-page="shop" onclick="openPage('shop')"><span>🏪</span>Shop</button>
 <button data-page="products" onclick="openPage('products')"><span>📦</span>Products</button>
 <button data-page="orders" onclick="openPage('orders')"><span>🧾</span>Orders</button>
 <button data-page="wallet" onclick="openPage('wallet')"><span>💰</span>Wallet</button>
 <button data-page="profile" onclick="openPage('profile')"><span>👤</span>Profile</button>
+<button data-page="support" onclick="openPage('support')"><span>💬</span>Support</button>
 </nav>
 
 <script>
@@ -363,7 +365,7 @@ openPage("shop");
 
 // NAVIGATION
 window.openPage=function(page){
-["shop","products","orders","wallet","profile"].forEach(p=>{
+["shop","products","orders","wallet","profile","support"].forEach(p=>{
 $(p+"Page").classList.toggle("hidden",p!==page);
 });
 document.querySelectorAll(".bottom-nav button").forEach(b=>{
@@ -373,7 +375,8 @@ if(page==="shop")loadShop();
 if(page==="products")loadMyProducts();
 if(page==="orders")loadOrders();
 if(page==="wallet"){loadWallet();loadWithdrawals();resetWithdrawScreen();}
-if(page==="profile"){loadProfile();loadKyc(currentUser);loadSupport();}
+if(page==="profile"){loadProfile();loadKyc(currentUser);}
+if(page==="support")loadSupport();
 };
 
 // SHOP
@@ -478,7 +481,7 @@ $("walletMessage").textContent="Wallet transaction records loaded.";
 }catch(err){$("walletMessage").textContent="Wallet error: "+err.message;}
 };
 
-// WITHDRAWAL SCREEN FLOW
+// WITHDRAWAL SCREEN
 window.resetWithdrawScreen=function(){
 $("withdrawOptions").classList.add("hidden");
 $("usdtForm").classList.add("hidden");
@@ -493,9 +496,7 @@ $("usdtForm").classList.add("hidden");
 $("bankForm").classList.add("hidden");
 $("withdrawMessage").textContent="";
 };
-window.closeWithdraw=function(){
-resetWithdrawScreen();
-};
+window.closeWithdraw=function(){resetWithdrawScreen();};
 window.showWithdraw=function(method){
 $("withdrawOptions").classList.add("hidden");
 $("withdrawOpenButton").classList.add("hidden");
@@ -515,18 +516,14 @@ e.preventDefault();
 const amount=Number($("usdtAmount").value);
 const address=$("usdtAddress").value.trim();
 if(!address||!Number.isFinite(amount)||amount<=0){
-$("withdrawMessage").textContent="Enter a valid USDT address and amount.";
-return;
+$("withdrawMessage").textContent="Enter a valid USDT address and amount.";return;
 }
 $("usdtSubmit").disabled=true;
 $("withdrawMessage").textContent="Submitting request...";
 try{
 const {error}=await db.from("withdrawals").insert({
-customer_id:currentUser.id,
-amount:amount,
-method:"USDT",
-account_details:JSON.stringify({usdt_address:address}),
-status:"Pending"
+customer_id:currentUser.id,amount:amount,method:"USDT",
+account_details:JSON.stringify({usdt_address:address}),status:"Pending"
 });
 if(error)throw error;
 $("usdtForm").reset();
@@ -548,18 +545,14 @@ iban:$("bankIban").value.trim(),
 account_number:$("bankAccountNumber").value.trim()
 };
 if(!details.account_name||!details.bank_name||!details.iban||!details.account_number||!Number.isFinite(amount)||amount<=0){
-$("withdrawMessage").textContent="Please complete all bank details and enter a valid amount.";
-return;
+$("withdrawMessage").textContent="Please complete all bank details and enter a valid amount.";return;
 }
 $("bankSubmit").disabled=true;
 $("withdrawMessage").textContent="Submitting request...";
 try{
 const {error}=await db.from("withdrawals").insert({
-customer_id:currentUser.id,
-amount:amount,
-method:"Bank Account",
-account_details:JSON.stringify(details),
-status:"Pending"
+customer_id:currentUser.id,amount:amount,method:"Bank Account",
+account_details:JSON.stringify(details),status:"Pending"
 });
 if(error)throw error;
 $("bankForm").reset();
@@ -658,7 +651,7 @@ $("kycStatus").textContent="KYC submitted successfully.";
 $("kycButton").disabled=false;
 });
 
-// CUSTOMER SERVICE
+// CUSTOMER SUPPORT - SEPARATE PAGE
 window.loadSupport=async function(){
 if(!currentUser)return;
 const box=$("supportList");
@@ -667,25 +660,40 @@ try{
 const {data,error}=await db.from("support_messages").select("*")
 .eq("customer_id",currentUser.id).order("created_at",{ascending:true});
 if(error)throw error;
-if(!data||!data.length){box.textContent="No messages yet. Send a message to Customer Service.";return;}
+if(!data||!data.length){
+box.textContent="No messages yet. Send a message to Customer Service.";
+return;
+}
 box.innerHTML="";
 data.forEach(m=>{
-const sent=document.createElement("div");sent.className="chat-message";
-const own=document.createElement("strong");own.textContent="You";
-const body=document.createElement("p");body.textContent=m.message||"";
-sent.append(own,body);box.appendChild(sent);
+const sent=document.createElement("div");
+sent.className="chat-message";
+const own=document.createElement("strong");
+own.textContent="You";
+const body=document.createElement("p");
+body.textContent=m.message||"";
+sent.append(own,body);
+box.appendChild(sent);
+
 if(m.reply){
-const reply=document.createElement("div");reply.className="chat-reply";
-const admin=document.createElement("strong");admin.textContent="Customer Service";
-const replyText=document.createElement("p");replyText.textContent=m.reply;
-reply.append(admin,replyText);box.appendChild(reply);
+const reply=document.createElement("div");
+reply.className="chat-reply";
+const admin=document.createElement("strong");
+admin.textContent="Customer Service - Admin Reply";
+const replyText=document.createElement("p");
+replyText.textContent=m.reply;
+reply.append(admin,replyText);
+box.appendChild(reply);
 }else{
-const waiting=document.createElement("p");waiting.className="small";
+const waiting=document.createElement("p");
+waiting.className="small";
 waiting.textContent="Waiting for Customer Service reply.";
 box.appendChild(waiting);
 }
 });
-}catch(err){box.textContent="Customer Service error: "+err.message;}
+}catch(err){
+box.textContent="Customer Service error: "+err.message;
+}
 };
 
 $("supportForm").addEventListener("submit",async e=>{
@@ -702,7 +710,9 @@ if(error)throw error;
 $("supportInput").value="";
 $("supportMessage").textContent="Message sent to Customer Service.";
 await loadSupport();
-}catch(err){$("supportMessage").textContent="Message error: "+err.message;}
+}catch(err){
+$("supportMessage").textContent="Message error: "+err.message;
+}
 $("supportButton").disabled=false;
 });
 
