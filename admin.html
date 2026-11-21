@@ -88,6 +88,7 @@ main{padding:12px}
 <button onclick="go('wallet_transactions',this)">▣ Wallet</button>
 <button onclick="go('withdrawals',this)">⇧ Withdrawals</button>
 <button onclick="go('kyc_submissions',this)">✓ KYC</button>
+<button onclick="go('customers',this)">♙ Customer Accounts</button>
 <button onclick="go('support_messages',this)">✉ Customer Service</button>
 <button onclick="go('notifications',this)">♧ Notifications</button>
 <button onclick="go('credit_score_history',this)">◷ Credit Score History</button>
@@ -105,10 +106,25 @@ main{padding:12px}
  </div>
 </div>
 
+<div id="withdrawalCustomerModal" class="profile-modal">
+ <div class="profile-modal-box">
+  <button class="red" onclick="closeWithdrawalCustomer()">Close</button>
+  <div id="withdrawalCustomerContent">Loading...</div>
+ </div>
+</div>
+
+<div id="kycCustomerModal" class="profile-modal">
+ <div class="profile-modal-box">
+  <button class="red" onclick="closeKycCustomer()">Close</button>
+  <div id="kycCustomerContent">Loading...</div>
+ </div>
+</div>
+
 <script>
 const SUPABASE_URL="https://biiagnjcyzvqbezabpxz.supabase.co";
 const SUPABASE_KEY="sb_publishable_QrBZWYfua111aN24MjlXHw_c-Cf5yB1";
 const IMAGE_BUCKET="product-images";
+const KYC_BUCKET="kyc-documents";
 
 let db=null,customers=[],products=[],current="dashboard";
 let pageVersion=0,profitEdited=false;
@@ -205,10 +221,7 @@ async function openCustomerProfile(id){
    db.from("withdrawals").select("*").eq("customer_id",id).order("created_at",{ascending:false}),
    db.from("kyc_submissions").select("*").eq("customer_id",id).order("created_at",{ascending:false})
   ]);
-  if(pr.error)throw pr.error;
-  if(or.error)throw or.error;
-  if(wr.error)throw wr.error;
-  if(kr.error)throw kr.error;
+  if(pr.error)throw pr.error;if(or.error)throw or.error;if(wr.error)throw wr.error;if(kr.error)throw kr.error;
   const p=pr.data||{};
   const fields=Object.entries(p).map(([key,value])=>`
    <div class="profile-field"><b>${esc(key.replaceAll("_"," ").toUpperCase())}</b>
@@ -223,95 +236,102 @@ async function openCustomerProfile(id){
   `;
  }catch(e){box.innerHTML="<p class='error'>"+esc(e.message)+"</p>"}
 }
+function closeCustomerProfile(){document.getElementById("customerProfileModal").style.display="none"}
 
-/* KYC CUSTOMER PROFILE - ONLY PERSONAL DETAILS AND KYC */
+/* KYC IMAGE URL: supports Storage path and existing direct URL */
+async function getKycImageUrl(value){
+ if(!value)return "";
+ const raw=String(value).trim();
+ if(/^https?:\/\//i.test(raw)){
+  if(raw.includes("/storage/v1/object/public/"+KYC_BUCKET+"/"))return raw;
+  const marker="/"+KYC_BUCKET+"/";
+  const at=raw.indexOf(marker);
+  if(at<0)return raw;
+  let path=raw.slice(at+marker.length).split("?")[0];
+  path=path.replace(/^(public|sign)\//,"");
+  const signed=await db.storage.from(KYC_BUCKET).createSignedUrl(path,3600);
+  if(!signed.error&&signed.data?.signedUrl)return signed.data.signedUrl;
+  return raw;
+ }
+ let path=raw.replace(/^\/+/,"").replace(new RegExp("^"+KYC_BUCKET.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"/"),"");
+ const signed=await db.storage.from(KYC_BUCKET).createSignedUrl(path,3600);
+ if(!signed.error&&signed.data?.signedUrl)return signed.data.signedUrl;
+ const pub=db.storage.from(KYC_BUCKET).getPublicUrl(path);
+ return pub.data?.publicUrl||"";
+}
+
+/* KYC CUSTOMER DETAILS - SEPARATE WINDOW */
 async function openKycCustomer(id){
- const modal=document.getElementById("customerProfileModal");
- const box=document.getElementById("customerProfileContent");
-
- modal.style.display="block";
- box.innerHTML="Loading KYC details...";
-
+ const modal=document.getElementById("kycCustomerModal");
+ const box=document.getElementById("kycCustomerContent");
+ modal.style.display="block";box.innerHTML="Loading KYC details...";
  try{
   const [pr,kr]=await Promise.all([
    db.from("profiles").select("*").eq("id",id).maybeSingle(),
-   db.from("kyc_submissions").select("*")
-    .eq("customer_id",id)
-    .order("created_at",{ascending:false})
+   db.from("kyc_submissions").select("*").eq("customer_id",id).order("created_at",{ascending:false})
   ]);
-
-  if(pr.error)throw pr.error;
-  if(kr.error)throw kr.error;
-
-  const p=pr.data||{};
-  const records=kr.data||[];
-
-  const name=p.full_name||"Name not available";
-  const email=p.email||"Email not available";
-  const phone=p.phone||"Phone not available";
-
-  const kycHtml=records.map(k=>{
-   const image=k.document_url||k.image_url||k.image||"";
-
-   return `
+  if(pr.error)throw pr.error;if(kr.error)throw kr.error;
+  const p=pr.data||{},records=kr.data||[];
+  const documents=[];
+  for(const k of records){
+   const imageValue=k.document_url||k.image_url||k.image||k.file_url||k.document_path||"";
+   const image=await getKycImageUrl(imageValue);
+   documents.push(`
     <div class="panel">
      <h3>KYC Document</h3>
      <p><b>Document Type:</b> ${esc(k.document_type||"Not available")}</p>
      <p><b>Status:</b> ${esc(k.status||"Pending")}</p>
-
-     ${image?`
-      <a href="${esc(image)}" target="_blank" rel="noopener">
-       <img class="kyc-image"
-        src="${esc(image)}"
-        alt="Customer KYC Document">
-      </a>
-      <p>
-       <a href="${esc(image)}" target="_blank" rel="noopener">
-        Open Original KYC Picture
-       </a>
-      </p>
-     `:`
-      <p class="error">KYC picture not available.</p>
-     `}
-
+     ${image?`<a href="${esc(image)}" target="_blank" rel="noopener"><img class="kyc-image" src="${esc(image)}" alt="KYC document" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"></a><p class="error" style="display:none">Picture could not be displayed.</p><p><a href="${esc(image)}" target="_blank" rel="noopener">Open Original KYC Picture</a></p>`:"<p class='error'>KYC picture not available. Check document path in kyc_submissions.</p>"}
      <p class="muted">Submitted: ${esc(k.created_at||"")}</p>
-    </div>
-   `;
-  }).join("");
-
+    </div>`);
+  }
   box.innerHTML=`
    <h2>Customer KYC Details</h2>
-
    <div class="profile-grid">
-    <div class="profile-field">
-     <b>CUSTOMER NAME</b>
-     <p>${esc(name)}</p>
-    </div>
-
-    <div class="profile-field">
-     <b>GMAIL</b>
-     <p>${esc(email)}</p>
-    </div>
-
-    <div class="profile-field">
-     <b>PHONE</b>
-     <p>${esc(phone)}</p>
-    </div>
+    <div class="profile-field"><b>CUSTOMER NAME</b><p>${esc(p.full_name||"Name not available")}</p></div>
+    <div class="profile-field"><b>GMAIL</b><p>${esc(p.email||"Email not available")}</p></div>
+    <div class="profile-field"><b>PHONE</b><p>${esc(p.phone||"Phone not available")}</p></div>
    </div>
-
-   <h3>KYC Documents (${records.length})</h3>
-   ${kycHtml||"No KYC documents found."}
-  `;
-
- }catch(e){
-  box.innerHTML="<p class='error'>"+esc(e.message)+"</p>";
- }
+   <h3>KYC Documents (${records.length})</h3>${documents.join("")||"No KYC documents found."}`;
+ }catch(e){box.innerHTML="<p class='error'>"+esc(e.message)+"</p>"}
 }
+function closeKycCustomer(){document.getElementById("kycCustomerModal").style.display="none"}
 
-function closeCustomerProfile(){
- document.getElementById("customerProfileModal").style.display="none";
+/* WITHDRAWAL: ONLY CUSTOMER + WITHDRAWAL DETAILS */
+async function openWithdrawalCustomer(customerId,withdrawalId){
+ const modal=document.getElementById("withdrawalCustomerModal");
+ const box=document.getElementById("withdrawalCustomerContent");
+ modal.style.display="block";box.innerHTML="Loading withdrawal details...";
+ try{
+  const [pr,wr]=await Promise.all([
+   db.from("profiles").select("*").eq("id",customerId).maybeSingle(),
+   db.from("withdrawals").select("*").eq("id",withdrawalId).eq("customer_id",customerId).maybeSingle()
+  ]);
+  if(pr.error)throw pr.error;if(wr.error)throw wr.error;
+  const p=pr.data||{},w=wr.data;
+  if(!w)throw new Error("Withdrawal request not found.");
+  const account=typeof w.account_details==="object"?JSON.stringify(w.account_details,null,2):w.account_details;
+  box.innerHTML=`
+   <h2>Withdrawal Customer Details</h2>
+   <h3>Customer Information</h3>
+   <div class="profile-grid">
+    <div class="profile-field"><b>NAME</b><p>${esc(p.full_name||"Name not available")}</p></div>
+    <div class="profile-field"><b>GMAIL</b><p>${esc(p.email||"Email not available")}</p></div>
+    <div class="profile-field"><b>PHONE</b><p>${esc(p.phone||"Phone not available")}</p></div>
+   </div>
+   <h3>Withdrawal Information</h3>
+   <div class="profile-grid">
+    <div class="profile-field"><b>AMOUNT</b><p>$${money(w.amount)}</p></div>
+    <div class="profile-field"><b>PAYMENT METHOD</b><p>${esc(w.method||"Not available")}</p></div>
+    <div class="profile-field"><b>STATUS</b><p>${esc(w.status||"Pending")}</p></div>
+    <div class="profile-field"><b>REQUEST DATE</b><p>${esc(w.created_at||"")}</p></div>
+   </div>
+   <div class="profile-field"><b>ACCOUNT DETAILS</b><pre>${esc(account||"Not available")}</pre></div>`;
+ }catch(e){box.innerHTML="<p class='error'>"+esc(e.message)+"</p>"}
 }
+function closeWithdrawalCustomer(){document.getElementById("withdrawalCustomerModal").style.display="none"}
 
+/* PAGE NAVIGATION */
 async function go(page,btn){
  current=page;const version=++pageVersion;
  document.querySelectorAll("aside button").forEach(x=>x.classList.remove("active"));
@@ -325,6 +345,7 @@ async function go(page,btn){
   if(page==="wallet_transactions")return await walletPage(version);
   if(page==="withdrawals")return await withdrawalsPage(version);
   if(page==="kyc_submissions")return await kycPage(version);
+  if(page==="customers")return await customersPage(version);
   if(page==="support_messages")return await supportPage(version);
   if(page==="notifications")return await notificationsPage(version);
   if(page==="credit_score_history")return await creditPage(version);
@@ -458,7 +479,6 @@ function calculateAvailableBalance(transactions){return calculateWalletSummary(t
 /* ORDERS */
 async function ordersPage(version=pageVersion){
  await Promise.all([loadCustomers(),loadProducts()]);if(!pageIs("orders",version))return;profitEdited=false;
-
  putContent(`
  <h2>Orders</h2>
  <div class="panel"><h3>Send Order to Customer</h3>
@@ -476,58 +496,36 @@ async function ordersPage(version=pageVersion){
  <p class="muted">Profit automatically 20% calculate hoga. Admin manually change kar sakta hai.</p>
  <button class="green" id="sendOrderButton" onclick="sendOrder()">SEND ORDER</button>
  </div>
-
  <div class="cards">
  <div class="stat">Pending Orders Total<strong id="pendingOrdersTotal">$0.00</strong><span class="muted">Selected customer ke pending orders ki Product Price</span></div>
  <div class="stat">Customer Available Balance<strong id="customerAvailableBalanceTotal">$0.00</strong><span class="muted">Selected customer ka current wallet balance</span></div>
  </div>
-
- <div class="panel">
- <h3>Orders List</h3>
+ <div class="panel"><h3>Orders List</h3>
  <label>Filter Orders by Customer</label>
  <select id="orderCustomerFilter" onchange="applyOrderCustomerFilter(this.value)">
  <option value="">All Customers</option>
  ${customers.map(c=>`<option value="${esc(c.id)}">${esc(c.full_name||c.email||c.id)} — ${esc(c.email||"")}</option>`).join("")}
  </select>
- <button class="gray" onclick="loadOrders()">Refresh</button>
- <div id="orderList"></div>
- </div>`,"orders",version);
-
- const customerSelect=document.getElementById("ocustomer");
- const filterSelect=document.getElementById("orderCustomerFilter");
- if(customerSelect)customerSelect.value=orderCustomerFilterId;
- if(filterSelect)filterSelect.value=orderCustomerFilterId;
-
- calcOrder(true);
- await loadOrders();
+ <button class="gray" onclick="loadOrders()">Refresh</button><div id="orderList"></div></div>`,"orders",version);
+ const customerSelect=document.getElementById("ocustomer"),filterSelect=document.getElementById("orderCustomerFilter");
+ if(customerSelect)customerSelect.value=orderCustomerFilterId;if(filterSelect)filterSelect.value=orderCustomerFilterId;
+ calcOrder(true);await loadOrders();
 }
-
 function syncOrderCustomerFilter(id){
- orderCustomerFilterId=String(id||"");
- const filter=document.getElementById("orderCustomerFilter");
- if(filter)filter.value=orderCustomerFilterId;
- loadOrders();
+ orderCustomerFilterId=String(id||"");const filter=document.getElementById("orderCustomerFilter");if(filter)filter.value=orderCustomerFilterId;loadOrders();
 }
-
 function applyOrderCustomerFilter(id){
- orderCustomerFilterId=String(id||"");
- const customer=document.getElementById("ocustomer");
- if(customer)customer.value=orderCustomerFilterId;
- const filter=document.getElementById("orderCustomerFilter");
- if(filter)filter.value=orderCustomerFilterId;
- loadOrders();
+ orderCustomerFilterId=String(id||"");const customer=document.getElementById("ocustomer");if(customer)customer.value=orderCustomerFilterId;
+ const filter=document.getElementById("orderCustomerFilter");if(filter)filter.value=orderCustomerFilterId;loadOrders();
 }
-
 function calcOrder(resetProfit=false){
  const p=products.find(x=>String(x.id)===val("oproduct")),qty=Number(val("oqty")),validQty=Number.isInteger(qty)&&qty>0?qty:0,productPrice=Number(p?.price||0)*validQty,profitInput=document.getElementById("oprofit");
- if(!profitInput)return;
- if(resetProfit||!profitEdited)profitInput.value=money(productPrice*.20);
+ if(!profitInput)return;if(resetProfit||!profitEdited)profitInput.value=money(productPrice*.20);
  const profit=Number(profitInput.value||0);
  document.getElementById("productPrice").textContent="$"+money(productPrice);
  document.getElementById("profitDisplay").textContent="$"+money(profit);
  document.getElementById("expectedReturn").textContent="$"+money(productPrice+profit);
 }
-
 async function sendOrder(){
  const cid=val("ocustomer"),pid=val("oproduct"),qty=Number(val("oqty")),p=products.find(x=>String(x.id)===pid);
  if(!cid||!p||!Number.isInteger(qty)||qty<1)return note("Customer, product aur quantity select karein.",true);
@@ -535,22 +533,15 @@ async function sendOrder(){
  const total=unitPrice*qty,profit=Number(val("oprofit"));if(!Number.isFinite(profit)||profit<0)return note("Profit amount check karein.",true);
  const b=document.getElementById("sendOrderButton");if(!b)return;b.disabled=true;
  try{
-  const o=await db.from("orders").insert({customer_id:cid,status:"pending",total_amount:total,admin_profit:profit}).select("id").single();
-  if(o.error)throw o.error;
+  const o=await db.from("orders").insert({customer_id:cid,status:"pending",total_amount:total,admin_profit:profit}).select("id").single();if(o.error)throw o.error;
   const it=await db.from("order_items").insert({order_id:o.data.id,product_id:p.id,product_name:p.name,quantity:qty,unit_price:unitPrice});
   if(it.error){await db.from("orders").delete().eq("id",o.data.id);throw it.error}
-  orderCustomerFilterId=String(cid);
-  const filter=document.getElementById("orderCustomerFilter");
-  if(filter)filter.value=orderCustomerFilterId;
+  orderCustomerFilterId=String(cid);const filter=document.getElementById("orderCustomerFilter");if(filter)filter.value=orderCustomerFilterId;
   note("Order sent. Product Price: $"+money(total)+" | Profit: $"+money(profit)+" | Expected Return: $"+money(total+profit));
-  document.getElementById("oproduct").value="";
-  document.getElementById("oqty").value="1";
-  profitEdited=false;calcOrder(true);
+  document.getElementById("oproduct").value="";document.getElementById("oqty").value="1";profitEdited=false;calcOrder(true);
   if(current==="orders")await loadOrders();
- }catch(e){note("Order save error: "+e.message,true)}
- finally{const btn=document.getElementById("sendOrderButton");if(btn)btn.disabled=false}
+ }catch(e){note("Order save error: "+e.message,true)}finally{const btn=document.getElementById("sendOrderButton");if(btn)btn.disabled=false}
 }
-
 async function creditCompletedOrder(orderId){
  const orderResult=await db.from("orders").select("*").eq("id",orderId).single();if(orderResult.error)throw orderResult.error;
  const order=orderResult.data;if(String(order.status).toLowerCase()!=="completed")return;
@@ -560,171 +551,59 @@ async function creditCompletedOrder(orderId){
  const depositCheck=await db.from("wallet_transactions").select("id").eq("customer_id",customerId).eq("reference_id",orderId).eq("transaction_type","deposit").limit(1);
  if(depositCheck.error)throw depositCheck.error;
  if(!depositCheck.data.length&&productPrice>0){
-  const deposit=await db.from("wallet_transactions").insert({customer_id:customerId,amount:productPrice,transaction_type:"deposit",status:"completed",description:"Completed order product price returned",reference_id:orderId});
-  if(deposit.error)throw deposit.error;
+  const deposit=await db.from("wallet_transactions").insert({customer_id:customerId,amount:productPrice,transaction_type:"deposit",status:"completed",description:"Completed order product price returned",reference_id:orderId});if(deposit.error)throw deposit.error;
  }
  const profitCheck=await db.from("wallet_transactions").select("id").eq("customer_id",customerId).eq("reference_id",orderId).eq("transaction_type","profit").limit(1);
  if(profitCheck.error)throw profitCheck.error;
  if(!profitCheck.data.length&&profit>0){
-  const result=await db.from("wallet_transactions").insert({customer_id:customerId,amount:profit,transaction_type:"profit",status:"completed",description:"Completed order profit",reference_id:orderId});
-  if(result.error)throw result.error;
+  const result=await db.from("wallet_transactions").insert({customer_id:customerId,amount:profit,transaction_type:"profit",status:"completed",description:"Completed order profit",reference_id:orderId});if(result.error)throw result.error;
  }
 }
-
 async function loadOrders(){
- const version=pageVersion;
- if(current!=="orders")return;
-
- const target=document.getElementById("orderList");
- if(!target||!target.isConnected)return;
-
+ const version=pageVersion;if(current!=="orders")return;
+ const target=document.getElementById("orderList");if(!target||!target.isConnected)return;
  const selectedCustomer=String(orderCustomerFilterId||"");
-
  const r=await db.from("orders").select("*").order("created_at",{ascending:false}).limit(300);
  if(r.error){if(pageIs("orders",version))note(r.error.message,true);return}
-
  const allRows=r.data||[];
-
  for(const order of allRows){
   if(!pageIs("orders",version))return;
   if(String(order.status).toLowerCase()==="completed"){
-   try{
-    await creditCompletedOrder(order.id);
-   }catch(e){
-    console.error("Wallet credit error:",order.id,e.message);
-    if(pageIs("orders",version))note("Wallet credit error: "+e.message,true);
-   }
+   try{await creditCompletedOrder(order.id)}catch(e){console.error("Wallet credit error:",order.id,e.message);if(pageIs("orders",version))note("Wallet credit error: "+e.message,true)}
   }
  }
-
- if(!pageIs("orders",version))return;
- await loadCustomers();
- if(!pageIs("orders",version))return;
-
+ if(!pageIs("orders",version))return;await loadCustomers();if(!pageIs("orders",version))return;
  let items=[];
- if(allRows.length){
-  const ir=await db.from("order_items").select("*").in("order_id",allRows.map(x=>x.id));
-  if(ir.error){if(pageIs("orders",version))note("Order items load error: "+ir.error.message,true);return}
-  items=ir.data||[];
- }
-
+ if(allRows.length){const ir=await db.from("order_items").select("*").in("order_id",allRows.map(x=>x.id));if(ir.error){if(pageIs("orders",version))note("Order items load error: "+ir.error.message,true);return}items=ir.data||[]}
  if(!pageIs("orders",version))return;
-
- const walletResult=await db.from("wallet_transactions")
-  .select("customer_id,amount,transaction_type,status").limit(5000);
-
- if(!pageIs("orders",version))return;
- if(walletResult.error){note("Wallet balance load error: "+walletResult.error.message,true);return}
-
- const transactionsByCustomer={};
- (walletResult.data||[]).forEach(x=>{
-  const cid=String(x.customer_id);
-  (transactionsByCustomer[cid]??=[]).push(x);
- });
-
- const balanceByCustomer={};
- let totalCustomerAvailableBalance=0;
-
- customers.forEach(c=>{
-  const cid=String(c.id);
-  const balance=calculateAvailableBalance(transactionsByCustomer[cid]||[]);
-  balanceByCustomer[cid]=balance;
-  totalCustomerAvailableBalance+=balance;
- });
-
- Object.keys(transactionsByCustomer).forEach(cid=>{
-  if(Object.prototype.hasOwnProperty.call(balanceByCustomer,cid))return;
-  const balance=calculateAvailableBalance(transactionsByCustomer[cid]);
-  balanceByCustomer[cid]=balance;
-  totalCustomerAvailableBalance+=balance;
- });
-
- const visibleRows=selectedCustomer
-  ?allRows.filter(x=>String(x.customer_id)===selectedCustomer)
-  :allRows;
-
- const visibleOrderIds=new Set(visibleRows.map(x=>String(x.id)));
- const visibleItems=items.filter(i=>visibleOrderIds.has(String(i.order_id)));
-
+ const walletResult=await db.from("wallet_transactions").select("customer_id,amount,transaction_type,status").limit(5000);
+ if(!pageIs("orders",version))return;if(walletResult.error){note("Wallet balance load error: "+walletResult.error.message,true);return}
+ const transactionsByCustomer={};(walletResult.data||[]).forEach(x=>{const cid=String(x.customer_id);(transactionsByCustomer[cid]??=[]).push(x)});
+ const balanceByCustomer={};let totalCustomerAvailableBalance=0;
+ customers.forEach(c=>{const cid=String(c.id),balance=calculateAvailableBalance(transactionsByCustomer[cid]||[]);balanceByCustomer[cid]=balance;totalCustomerAvailableBalance+=balance});
+ Object.keys(transactionsByCustomer).forEach(cid=>{if(Object.prototype.hasOwnProperty.call(balanceByCustomer,cid))return;const balance=calculateAvailableBalance(transactionsByCustomer[cid]);balanceByCustomer[cid]=balance;totalCustomerAvailableBalance+=balance});
+ const visibleRows=selectedCustomer?allRows.filter(x=>String(x.customer_id)===selectedCustomer):allRows;
+ const visibleOrderIds=new Set(visibleRows.map(x=>String(x.id))),visibleItems=items.filter(i=>visibleOrderIds.has(String(i.order_id)));
  let pendingTotal=0;
-
- visibleRows.forEach(x=>{
-  if(String(x.status||"").toLowerCase().trim()!=="pending")return;
-  const orderItems=visibleItems.filter(i=>String(i.order_id)===String(x.id));
-  const itemTotal=orderItems.reduce((sum,i)=>sum+Number(i.unit_price||0)*Number(i.quantity||0),0);
-  const productPrice=orderItems.length?itemTotal:Number(x.total_amount??x.product_price??0);
-  if(Number.isFinite(productPrice))pendingTotal+=productPrice;
- });
-
- const selectedBalance=selectedCustomer
-  ?(balanceByCustomer[selectedCustomer]||0)
-  :totalCustomerAvailableBalance;
-
- const pendingElement=document.getElementById("pendingOrdersTotal");
- const balanceElement=document.getElementById("customerAvailableBalanceTotal");
-
- if(pendingElement)pendingElement.textContent="$"+money(pendingTotal);
- if(balanceElement)balanceElement.textContent="$"+money(selectedBalance);
-
- if(!pageIs("orders",version))return;
-
- const list=document.getElementById("orderList");
- if(!list||!list.isConnected)return;
-
- const orderStatuses=[
-  ["pending","Pending"],
-  ["processing","Processing"],
-  ["shipping","Shipping"],
-  ["completed","Complete"],
-  ["cancelled","Cancel"]
- ];
-
+ visibleRows.forEach(x=>{if(String(x.status||"").toLowerCase().trim()!=="pending")return;const oi=visibleItems.filter(i=>String(i.order_id)===String(x.id));const itemTotal=oi.reduce((sum,i)=>sum+Number(i.unit_price||0)*Number(i.quantity||0),0);const price=oi.length?itemTotal:Number(x.total_amount??x.product_price??0);if(Number.isFinite(price))pendingTotal+=price});
+ const selectedBalance=selectedCustomer?(balanceByCustomer[selectedCustomer]||0):totalCustomerAvailableBalance;
+ const pe=document.getElementById("pendingOrdersTotal"),be=document.getElementById("customerAvailableBalanceTotal");if(pe)pe.textContent="$"+money(pendingTotal);if(be)be.textContent="$"+money(selectedBalance);
+ if(!pageIs("orders",version))return;const list=document.getElementById("orderList");if(!list||!list.isConnected)return;
+ const statuses=[["pending","Pending"],["processing","Processing"],["shipping","Shipping"],["completed","Complete"],["cancelled","Cancel"]];
  list.innerHTML=visibleRows.length
  ?"<div class='tablewrap'><table><tr><th>Customer</th><th>Customer Available Balance</th><th>Order ID</th><th>Product / Quantity</th><th>Product Price</th><th>Profit</th><th>Expected Return</th><th>Status</th><th>Update</th></tr>"+
  visibleRows.map(x=>{
-  const orderItems=visibleItems.filter(i=>String(i.order_id)===String(x.id));
-  const itemTotal=orderItems.reduce((sum,i)=>sum+Number(i.unit_price||0)*Number(i.quantity||0),0);
-  const productPrice=orderItems.length?itemTotal:Number(x.total_amount??x.product_price??0);
-  const profit=Number(x.admin_profit||0);
-  const customerAvailableBalance=balanceByCustomer[String(x.customer_id)]||0;
-  const itemText=orderItems.length
-   ?orderItems.map(i=>`<div><b>${esc(i.product_name||"Product")}</b><br>Quantity: ${esc(i.quantity)}<br>Unit Price: $${money(i.unit_price)}</div>`).join("<hr>")
-   :"Product details unavailable";
-  const currentStatus=String(x.status||"").toLowerCase().trim();
-
-  return `<tr>
-   <td>${customerLink(x.customer_id)}
-    <p><button onclick="openCustomerProfile('${esc(x.customer_id)}')">View Full Details</button></p>
-   </td>
-   <td><b>$${money(customerAvailableBalance)}</b></td>
-   <td>${esc(x.id)}</td>
-   <td>${itemText}</td>
-   <td>$${money(productPrice)}</td>
-   <td>$${money(profit)}</td>
-   <td><b>$${money(productPrice+profit)}</b></td>
-   <td><b>${esc(x.status)}</b></td>
-   <td>
-    <select id="orderstatus_${esc(x.id)}">
-     ${orderStatuses.map(([value,label])=>`<option value="${value}" ${currentStatus===value?"selected":""}>${label}</option>`).join("")}
-     ${!orderStatuses.some(([value])=>value===currentStatus)?`<option value="${esc(currentStatus)}" selected>${esc(x.status)} (Old Status)</option>`:""}
-    </select>
-    <button onclick="updateOrder('${esc(x.id)}')">Save</button>
-   </td>
-  </tr>`;
- }).join("")+"</table></div>"
- :"No orders found for this customer.";
+  const oi=visibleItems.filter(i=>String(i.order_id)===String(x.id)),itemTotal=oi.reduce((sum,i)=>sum+Number(i.unit_price||0)*Number(i.quantity||0),0),price=oi.length?itemTotal:Number(x.total_amount??x.product_price??0),profit=Number(x.admin_profit||0),balance=balanceByCustomer[String(x.customer_id)]||0;
+  const itemText=oi.length?oi.map(i=>`<div><b>${esc(i.product_name||"Product")}</b><br>Quantity: ${esc(i.quantity)}<br>Unit Price: $${money(i.unit_price)}</div>`).join("<hr>"):"Product details unavailable",st=String(x.status||"").toLowerCase().trim();
+  return `<tr><td>${customerLink(x.customer_id)}<p><button onclick="openCustomerProfile('${esc(x.customer_id)}')">View Full Details</button></p></td><td><b>$${money(balance)}</b></td><td>${esc(x.id)}</td><td>${itemText}</td><td>$${money(price)}</td><td>$${money(profit)}</td><td><b>$${money(price+profit)}</b></td><td><b>${esc(x.status)}</b></td><td><select id="orderstatus_${esc(x.id)}">${statuses.map(([v,l])=>`<option value="${v}" ${st===v?"selected":""}>${l}</option>`).join("")}${!statuses.some(([v])=>v===st)?`<option value="${esc(st)}" selected>${esc(x.status)} (Old Status)</option>`:""}</select><button onclick="updateOrder('${esc(x.id)}')">Save</button></td></tr>`;
+ }).join("")+"</table></div>":"No orders found for this customer.";
 }
-
 async function updateOrder(id){
  const select=document.getElementById("orderstatus_"+id);if(!select)return note("Order status select nahi mila.",true);
  const status=select.value;if(!["pending","processing","shipping","completed","cancelled"].includes(status))return note("Invalid order status.",true);
  select.disabled=true;
- try{
-  const r=await db.from("orders").update({status}).eq("id",id).select("*").single();if(r.error)throw r.error;
-  if(status==="completed"){await creditCompletedOrder(id);note("Order completed. Wallet credit check ho gaya.")}else note("Order successfully "+status+" ho gaya.");
-  if(current==="orders")await loadOrders();
- }catch(e){note("Order save error: "+e.message,true)}
- finally{const s=document.getElementById("orderstatus_"+id);if(s)s.disabled=false}
+ try{const r=await db.from("orders").update({status}).eq("id",id).select("*").single();if(r.error)throw r.error;if(status==="completed"){await creditCompletedOrder(id);note("Order completed. Wallet credit check ho gaya.")}else note("Order successfully "+status+" ho gaya.");if(current==="orders")await loadOrders()}
+ catch(e){note("Order save error: "+e.message,true)}finally{const s=document.getElementById("orderstatus_"+id);if(s)s.disabled=false}
 }
 
 /* WALLET MANAGEMENT */
@@ -741,26 +620,20 @@ async function walletPage(version=pageVersion){
  <div class="panel"><h3>Wallet History</h3><button class="gray" onclick="walletHistory()">Refresh</button><div id="walletList"></div></div>`,"wallet_transactions",version);
 }
 async function walletAction(){
- const cid=val("wcustomer"),amount=Number(val("wamount")),type=val("wtype");
- if(!cid||!Number.isFinite(amount)||amount<=0)return note("Customer aur valid amount select karein.",true);
+ const cid=val("wcustomer"),amount=Number(val("wamount")),type=val("wtype");if(!cid||!Number.isFinite(amount)||amount<=0)return note("Customer aur valid amount select karein.",true);
  const b=document.getElementById("walletSaveButton");if(!b)return;b.disabled=true;
- try{
-  const r=await db.from("wallet_transactions").insert({customer_id:cid,amount,transaction_type:type,status:"completed",description:val("wdesc")||type,reference_id:null});
-  if(r.error)throw r.error;note("Wallet transaction save ho gaya.");document.getElementById("wamount").value="";document.getElementById("wdesc").value="";await walletHistory();
- }catch(e){note(e.message,true)}finally{const btn=document.getElementById("walletSaveButton");if(btn)btn.disabled=false}
+ try{const r=await db.from("wallet_transactions").insert({customer_id:cid,amount,transaction_type:type,status:"completed",description:val("wdesc")||type,reference_id:null});if(r.error)throw r.error;note("Wallet transaction save ho gaya.");document.getElementById("wamount").value="";document.getElementById("wdesc").value="";await walletHistory()}
+ catch(e){note(e.message,true)}finally{const btn=document.getElementById("walletSaveButton");if(btn)btn.disabled=false}
 }
 async function walletHistory(){
  const version=pageVersion,cid=val("wcustomer"),summary=document.getElementById("walletSummary"),list=document.getElementById("walletList");
  if(!summary||!list)return;if(!cid){summary.innerHTML="Select customer.";list.innerHTML="";return}
  try{
-  const [walletResult,ordersResult]=await Promise.all([
-   db.from("wallet_transactions").select("*").eq("customer_id",cid).order("created_at",{ascending:false}).limit(500),
-   db.from("orders").select("id,total_amount,product_price,status").eq("customer_id",cid)
-  ]);
-  if(!pageIs("wallet_transactions",version))return;if(walletResult.error)throw walletResult.error;if(ordersResult.error)throw ordersResult.error;
-  const data=walletResult.data||[],wallet=calculateWalletSummary(data,ordersResult.data||[]);
+  const [wr,or]=await Promise.all([db.from("wallet_transactions").select("*").eq("customer_id",cid).order("created_at",{ascending:false}).limit(500),db.from("orders").select("id,total_amount,product_price,status").eq("customer_id",cid)]);
+  if(!pageIs("wallet_transactions",version))return;if(wr.error)throw wr.error;if(or.error)throw or.error;
+  const wallet=calculateWalletSummary(wr.data||[],or.data||[]);
   summary.innerHTML=`<div class="cards"><div class="stat">Available Balance<strong>$${money(wallet.available)}</strong></div><div class="stat">Total Profit<strong>$${money(wallet.profit)}</strong></div><div class="stat">Applied Balance<strong>$${money(wallet.applied)}</strong></div></div>`;
-  list.innerHTML=renderSimple(data);
+  list.innerHTML=renderSimple(wr.data||[]);
  }catch(e){if(pageIs("wallet_transactions",version))note("Wallet load error: "+e.message,true)}
 }
 
@@ -775,7 +648,7 @@ async function withdrawalsPage(version=pageVersion){
   const pending=String(x.status||"").toLowerCase().trim()==="pending";
   return `<div class="panel">
    <h3>${customerLink(x.customer_id)}</h3>
-   <button onclick="openCustomerProfile('${esc(x.customer_id)}')">Open Customer Full Details</button>
+   <button onclick="openWithdrawalCustomer('${esc(x.customer_id)}','${esc(x.id)}')">Open Customer Details</button>
    <p>Amount: $${money(x.amount)} | Method: ${esc(x.method)}</p>
    <p>Account Details:</p><pre>${esc(typeof x.account_details==="object"?JSON.stringify(x.account_details,null,2):x.account_details)}</pre>
    <p>Status: <b>${esc(x.status)}</b></p>
@@ -789,77 +662,71 @@ async function withdrawStatus(id,status){
  if(!confirm("Are you sure you want to "+(status==="completed"?"APPROVE":"REJECT")+" this withdrawal?"))return;
  try{
   const r=await db.from("withdrawals").update({status:status,admin_note:adminNote}).eq("id",id).ilike("status","pending").select("id").maybeSingle();
-  if(r.error)throw r.error;
-  if(!r.data){note("This withdrawal has already been processed. No changes made.",true);if(current==="withdrawals")await withdrawalsPage();return}
-  note(status==="completed"?"Withdrawal approved and marked Completed.":"Withdrawal rejected. Refund trigger has been activated.");
-  if(current==="withdrawals")await withdrawalsPage();
+  if(r.error)throw r.error;if(!r.data){note("This withdrawal has already been processed. No changes made.",true);if(current==="withdrawals")await withdrawalsPage();return}
+  note(status==="completed"?"Withdrawal approved and marked Completed.":"Withdrawal rejected. Refund trigger has been activated.");if(current==="withdrawals")await withdrawalsPage();
  }catch(e){note("Withdrawal error: "+e.message,true)}
 }
 
 /* KYC */
 async function kycPage(version=pageVersion){
- await loadCustomers();
- if(!pageIs("kyc_submissions",version))return;
-
- const r=await db.from("kyc_submissions")
-  .select("*")
-  .order("created_at",{ascending:false})
-  .limit(300);
-
- if(r.error)throw r.error;
- if(!pageIs("kyc_submissions",version))return;
-
- putContent(`
-  <h2>KYC Requests</h2>
-  <button class="gray" onclick="kycPage()">Refresh</button>
-  <div id="kycList"></div>
- `,"kyc_submissions",version);
-
- const target=document.getElementById("kycList");
- if(!target)return;
-
+ await loadCustomers();if(!pageIs("kyc_submissions",version))return;
+ const r=await db.from("kyc_submissions").select("*").order("created_at",{ascending:false}).limit(300);
+ if(r.error)throw r.error;if(!pageIs("kyc_submissions",version))return;
+ putContent(`<h2>KYC Requests</h2><button class="gray" onclick="kycPage()">Refresh</button><div id="kycList"></div>`,"kyc_submissions",version);
+ const target=document.getElementById("kycList");if(!target)return;
  target.innerHTML=(r.data||[]).map(x=>{
-  const pending=String(x.status||"").toLowerCase().trim()==="pending";
-  const customer=customers.find(c=>String(c.id)===String(x.customer_id));
-  const name=customer?.full_name||"Name not available";
-  const email=customer?.email||"Email not available";
-
-  return `
-   <div class="panel">
-    <button class="green"
-     onclick="openKycCustomer('${esc(x.customer_id)}')">
-     ${esc(name)} — ${esc(email)}
-    </button>
-
-    <p>Document: ${esc(x.document_type||"Not available")}</p>
-    <p>Status: <b>${esc(x.status||"Pending")}</b></p>
-
-    ${pending?`
-     <button class="green"
-      onclick="kycStatus('${esc(x.id)}','approved')">
-      Approve
-     </button>
-     <button class="red"
-      onclick="kycStatus('${esc(x.id)}','rejected')">
-      Reject
-     </button>
-    `:`
-     <p class="muted">Decision already made. No further action allowed.</p>
-    `}
-   </div>
-  `;
+  const pending=String(x.status||"").toLowerCase().trim()==="pending",customer=customers.find(c=>String(c.id)===String(x.customer_id));
+  return `<div class="panel">
+   <button class="green" onclick="openKycCustomer('${esc(x.customer_id)}')">${esc(customer?.full_name||"Name not available")} — ${esc(customer?.email||"Email not available")}</button>
+   <p>Document: ${esc(x.document_type||"Not available")}</p><p>Status: <b>${esc(x.status||"Pending")}</b></p>
+   ${pending?`<button class="green" onclick="kycStatus('${esc(x.id)}','approved')">Approve</button><button class="red" onclick="kycStatus('${esc(x.id)}','rejected')">Reject</button>`:`<p class="muted">Decision already made. No further action allowed.</p>`}
+  </div>`;
  }).join("")||"No KYC requests.";
 }
-
 async function kycStatus(id,status){
  if(!["approved","rejected"].includes(status))return note("Invalid KYC status.",true);
  if(!confirm("Are you sure you want to "+(status==="approved"?"APPROVE":"REJECT")+" this KYC request?"))return;
+ try{const r=await db.from("kyc_submissions").update({status}).eq("id",id).ilike("status","pending").select("id").maybeSingle();if(r.error)throw r.error;if(!r.data){note("This KYC request has already been processed. No changes made.",true);if(current==="kyc_submissions")await kycPage();return}note(status==="approved"?"KYC approved successfully.":"KYC rejected successfully.");if(current==="kyc_submissions")await kycPage()}
+ catch(e){note("KYC update error: "+e.message,true)}
+}
+
+/* CUSTOMER ACCOUNTS */
+async function customersPage(version=pageVersion){
+ await loadCustomers();if(!pageIs("customers",version))return;
+ putContent(`<h2>Customer Accounts</h2>
+ <p class="muted">Delete Account permanently removes the customer's account and related records. This cannot be undone.</p>
+ <div class="panel"><input id="customerSearch" placeholder="Search customer name or Gmail" oninput="filterCustomerAccounts()"><div id="customerAccountsList"></div></div>`,"customers",version);
+ renderCustomerAccounts(customers);
+}
+function renderCustomerAccounts(rows){
+ const box=document.getElementById("customerAccountsList");if(!box)return;
+ box.innerHTML=rows.map(c=>`
+  <div class="customer">
+   <b>${esc(c.full_name||"Name not available")}</b><br>
+   <span class="muted">${esc(c.email||"Email not available")}</span>
+   <p class="muted">Phone: ${esc(c.phone||"Not available")}</p>
+   <button onclick="openCustomerProfile('${esc(c.id)}')">View Customer Details</button>
+   <button class="red" onclick="deleteCustomerAccount('${esc(c.id)}')">Delete Account</button>
+  </div>`).join("")||"No customers found.";
+}
+function filterCustomerAccounts(){
+ const q=val("customerSearch").toLowerCase();
+ renderCustomerAccounts(customers.filter(c=>(String(c.full_name||"")+" "+String(c.email||"")+" "+String(c.phone||"")).toLowerCase().includes(q)));
+}
+async function deleteCustomerAccount(id){
+ const c=customers.find(x=>String(x.id)===String(id));
+ if(!c)return note("Customer not found.",true);
+ const label=(c.full_name||"Customer")+" ("+(c.email||id)+")";
+ if(!confirm("Permanently delete "+label+"?\n\nThis will delete the customer's account and related records. This action cannot be undone."))return;
  try{
-  const r=await db.from("kyc_submissions").update({status:status}).eq("id",id).ilike("status","pending").select("id").maybeSingle();
-  if(r.error)throw r.error;
-  if(!r.data){note("This KYC request has already been processed. No changes made.",true);if(current==="kyc_submissions")await kycPage();return}
-  note(status==="approved"?"KYC approved successfully.":"KYC rejected successfully.");if(current==="kyc_submissions")await kycPage();
- }catch(e){note("KYC update error: "+e.message,true)}
+  const {data,error}=await db.functions.invoke("admin-delete-customer",{body:{customer_id:id}});
+  if(error)throw error;
+  if(data?.error)throw new Error(data.error);
+  if(!data?.success)throw new Error("Delete function did not confirm success.");
+  note("Customer account permanently deleted.");
+  await loadCustomers();
+  if(current==="customers")await customersPage();
+ }catch(e){note("Delete failed: "+(e.message||"Check Edge Function setup."),true)}
 }
 
 /* CUSTOMER SERVICE CHAT */
@@ -877,56 +744,31 @@ async function supportPage(version=pageVersion){
 }
 function renderSupportCustomers(){
  const box=document.getElementById("supportCustomerList");if(!box)return;
- const groups={};
- supportMessages.forEach(m=>{(groups[String(m.customer_id)]??=[]).push(m)});
- window.supportGroups=groups;
+ const groups={};supportMessages.forEach(m=>{(groups[String(m.customer_id)]??=[]).push(m)});window.supportGroups=groups;
  const q=(document.getElementById("supportSearch")?.value||"").toLowerCase();
  const ids=Object.keys(groups).filter(id=>(String(customerName(id))+" "+customerEmail(id)).toLowerCase().includes(q));
- box.innerHTML=ids.map(id=>{
-  const msgs=groups[id],last=msgs[msgs.length-1];
-  return `<div class="customer" onclick="openSupportChat('${esc(id)}')">
-   <b>${esc(customerName(id))}</b><br>
-   <span class="click-customer">${esc(customerEmail(id))}</span>
-   <p class="muted">${msgs.length} messages · Latest: ${esc(last.message||"")}</p>
-   <b>${last.reply?"Replied":"Waiting for reply"}</b>
-  </div>`;
- }).join("")||"No customer messages.";
+ box.innerHTML=ids.map(id=>{const msgs=groups[id],last=msgs[msgs.length-1];return `<div class="customer" onclick="openSupportChat('${esc(id)}')"><b>${esc(customerName(id))}</b><br><span class="click-customer">${esc(customerEmail(id))}</span><p class="muted">${msgs.length} messages · Latest: ${esc(last.message||"")}</p><b>${last.reply?"Replied":"Waiting for reply"}</b></div>`}).join("")||"No customer messages.";
 }
 function filterSupportCustomers(){renderSupportCustomers()}
 function openSupportChat(customerId){
- activeSupportCustomerId=String(customerId);
- const messages=(window.supportGroups?.[activeSupportCustomerId]||[]);
+ activeSupportCustomerId=String(customerId);const messages=(window.supportGroups?.[activeSupportCustomerId]||[]);
  putContent(`<button class="gray" onclick="supportPage()">← Back to Customers</button>
- <div class="panel"><h2>${esc(customerName(customerId))}</h2>
- <p>Gmail: ${esc(customerEmail(customerId))}</p>
+ <div class="panel"><h2>${esc(customerName(customerId))}</h2><p>Gmail: ${esc(customerEmail(customerId))}</p>
  <button onclick="openCustomerProfile('${esc(customerId)}')">Open Customer Full Profile</button></div>
  <div class="panel"><h3>Chat Messages</h3><div id="supportChatMessages"></div></div>`,"support_messages",pageVersion);
  const box=document.getElementById("supportChatMessages");if(!box)return;
  box.innerHTML=messages.map(m=>`
-  <div class="chat-bubble chat-customer">
-   <div class="chat-meta">Customer · ${esc(m.created_at||"")}</div>
-   <b>${esc(customerName(customerId))}</b><p>${esc(m.message)}</p>
-  </div>
+  <div class="chat-bubble chat-customer"><div class="chat-meta">Customer · ${esc(m.created_at||"")}</div><b>${esc(customerName(customerId))}</b><p>${esc(m.message)}</p></div>
   ${m.reply?`<div class="chat-bubble chat-admin"><div class="chat-meta">Admin Reply</div><p>${esc(m.reply)}</p></div>`:""}
-  <div class="panel">
-   <label>Reply to this message</label>
-   <textarea id="reply_${esc(m.id)}" placeholder="Write your reply...">${esc(m.reply||"")}</textarea>
-   <button class="green" onclick="sendReply('${esc(m.id)}')">Send Reply</button>
-  </div>
+  <div class="panel"><label>Reply to this message</label><textarea id="reply_${esc(m.id)}" placeholder="Write your reply...">${esc(m.reply||"")}</textarea><button class="green" onclick="sendReply('${esc(m.id)}')">Send Reply</button></div>
  `).join("")||"No messages.";
 }
 async function sendReply(id){
  const el=document.getElementById("reply_"+id);if(!el||!el.value.trim())return note("Reply likhein.",true);
- const reply=el.value.trim();
- const r=await db.from("support_messages").update({reply,status:"answered"}).eq("id",id);
- if(r.error)return note(r.error.message,true);
- note("Reply customer ke message mein save ho gaya.");
- const cid=activeSupportCustomerId;
- const refreshed=await db.from("support_messages").select("*").order("created_at",{ascending:true}).limit(1000);
- if(refreshed.error)return note(refreshed.error.message,true);
- supportMessages=refreshed.data||[];
- const groups={};supportMessages.forEach(m=>(groups[String(m.customer_id)]??=[]).push(m));
- window.supportGroups=groups;
+ const r=await db.from("support_messages").update({reply:el.value.trim(),status:"answered"}).eq("id",id);if(r.error)return note(r.error.message,true);
+ note("Reply customer ke message mein save ho gaya.");const cid=activeSupportCustomerId;
+ const refreshed=await db.from("support_messages").select("*").order("created_at",{ascending:true}).limit(1000);if(refreshed.error)return note(refreshed.error.message,true);
+ supportMessages=refreshed.data||[];const groups={};supportMessages.forEach(m=>(groups[String(m.customer_id)]??=[]).push(m));window.supportGroups=groups;
  if(current==="support_messages"&&cid)openSupportChat(cid);
 }
 
@@ -954,12 +796,10 @@ async function saveCreditScore(){
  const cid=val("ccustomer"),score=Number(val("newScore")),reason=val("scoreReason");
  if(!cid||val("newScore")===""||!Number.isInteger(score)||score<0||score>1000)return note("Customer aur score 0 se 1000 ke darmiyan likhein.",true);
  const c=customers.find(x=>String(x.id)===String(cid));if(!c)return note("Customer nahi mila.",true);
- const oldScore=Number(c.credit_score||0);
- const update=await db.from("profiles").update({credit_score:score}).eq("id",cid);
+ const oldScore=Number(c.credit_score||0),update=await db.from("profiles").update({credit_score:score}).eq("id",cid);
  if(update.error)return note(update.error.message,true);
  const history=await db.from("credit_score_history").insert({customer_id:cid,old_score:oldScore,new_score:score,change_amount:score-oldScore,reason:reason||"Admin adjustment"});
- if(history.error)note("Score updated, lekin history save nahi hui: "+history.error.message,true);
- else note("Credit score successfully updated.");
+ if(history.error)note("Score updated, lekin history save nahi hui: "+history.error.message,true);else note("Credit score successfully updated.");
  if(current==="credit_score_history")await creditPage();
 }
 
