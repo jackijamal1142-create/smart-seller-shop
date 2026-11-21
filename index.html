@@ -51,9 +51,11 @@ button.link{background:none;color:var(--blue);padding:5px;width:auto}
 .order-row:last-child{border:0}.order-row strong{font-size:14px}.order-row .muted{margin-top:5px}
 /* Compact order cards so more orders fit on each screen */
 .order-card{padding:7px 9px;margin:5px 0;border-radius:10px}
-.order-card .order-head{display:flex;align-items:center;gap:9px;margin-bottom:5px;min-width:0}
-.order-card .order-product-image{width:54px;height:54px;flex:0 0 54px;object-fit:cover;border-radius:8px;background:#edf2f8}
-.order-card .order-head h3{min-width:0;overflow-wrap:anywhere;margin:0;font-size:13px}
+.order-card .order-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:7px;min-width:0}
+.order-card .order-product-image{width:82px;height:82px;flex:0 0 82px;object-fit:cover;border-radius:9px;background:#edf2f8}
+.order-card .order-details{flex:1;min-width:0}
+.order-card .order-head h3{min-width:0;overflow-wrap:anywhere;margin:0 0 4px;font-size:13px}
+.order-card .order-details p{font-size:11px;line-height:1.2;margin:3px 0}
 
 .order-card h3{font-size:13px;margin:0 0 3px}
 .order-card p{font-size:11px;line-height:1.12;margin:2px 0}
@@ -660,19 +662,21 @@ function makeOrderCard(o){
  const image=document.createElement("img");image.className="order-product-image";image.alt="Product";
  image.src=getProductImageUrl(o.product_image)||"https://placehold.co/120x120/eaf0f8/405be8?text=Product";
  image.onerror=()=>{image.onerror=null;image.src="https://placehold.co/120x120/eaf0f8/405be8?text=Product"};
+ const details=document.createElement("div");details.className="order-details";
  const title=document.createElement("h3");title.textContent=o.product_name||"Order";
- head.append(image,title);
  const quantity=document.createElement("p");quantity.textContent="Quantity: "+safeText(o.quantity);
  const price=document.createElement("p");price.textContent="Product Price: "+money(orderPrice(o));
  const profit=document.createElement("p");profit.textContent="Profit: "+money(orderProfit(o));
  const returned=document.createElement("p");returned.textContent="Expected Return: "+money(orderPrice(o)+orderProfit(o));
+ details.append(title,quantity,price,profit,returned);
+ head.append(image,details);
  const status=document.createElement("span");
  const s=String(o.status||"pending").toLowerCase().trim();
  status.className="status "+(["pending","pickup","shipped","shipping","processing","picked_up","picked up"].includes(s)?"shipped":["rejected","cancelled"].includes(s)?"rejected":"");
  status.textContent="Current Status: "+orderStatus(o);
  const progress=document.createElement("div");progress.className="order-progress";
  orderProgress(s).forEach(step=>progress.appendChild(step));
- card.append(head,quantity,price,profit,returned,status,progress);
+ card.append(head,status,progress);
  if(s==="pending"||s==="pickup"){
   const button=document.createElement("button");
   button.className="full green-btn kyc-action";button.textContent="PICKUP";
