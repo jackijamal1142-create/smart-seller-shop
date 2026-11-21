@@ -440,6 +440,20 @@ async function ordersPage(version=pageVersion){
  <p class="muted">Profit automatically 20% calculate hoga. Admin manually change kar sakta hai.</p>
  <button class="green" id="sendOrderButton" onclick="sendOrder()">SEND ORDER</button>
  </div>
+
+ <div class="cards">
+  <div class="stat">
+   Pending Orders Total
+   <strong id="pendingOrdersTotal">$0.00</strong>
+   <span class="muted">Sirf pending orders ki Product Price</span>
+  </div>
+  <div class="stat">
+   Total Customer Add Balance
+   <strong id="customerAddBalanceTotal">$0.00</strong>
+   <span class="muted">Admin ke Add Balance transactions</span>
+  </div>
+ </div>
+
  <div class="panel"><h3>Orders List</h3>
  <button class="gray" onclick="loadOrders()">Refresh</button>
  <div id="orderList"></div></div>
@@ -547,7 +561,7 @@ async function creditCompletedOrder(orderId){
  }
 }
 
-/* LOAD ORDERS - SAFE PAGE CHECKS */
+/* LOAD ORDERS + PENDING TOTAL + CUSTOMER ADD BALANCE */
 async function loadOrders(){
  const version=pageVersion;
  if(current!=="orders")return;
@@ -582,22 +596,77 @@ async function loadOrders(){
  }
  if(!pageIs("orders",version))return;
 
+ /* Get wallet Add Balance transactions.
+    reference_id is excluded because completed order refunds also use deposit. */
+ const walletResult=await db.from("wallet_transactions")
+  .select("customer_id,amount,transaction_type,status,reference_id")
+  .limit(5000);
+
+ if(!pageIs("orders",version))return;
+ if(walletResult.error){
+  note("Add Balance load error: "+walletResult.error.message,true);
+ }
+
+ const addBalanceByCustomer={};
+ let totalAddBalance=0;
+
+ (walletResult.data||[]).forEach(x=>{
+  const type=String(x.transaction_type||"").toLowerCase().trim();
+  const status=String(x.status||"").toLowerCase().trim();
+  const amount=Number(x.amount||0);
+
+  if(!["deposit","add_balance"].includes(type))return;
+  if(!["approved","completed","success","successful","paid"].includes(status))return;
+  if(x.reference_id)return;
+  if(!Number.isFinite(amount)||amount<=0)return;
+
+  const cid=String(x.customer_id);
+  addBalanceByCustomer[cid]=(addBalanceByCustomer[cid]||0)+amount;
+  totalAddBalance+=amount;
+ });
+
+ /* Pending total contains Product Price only, never admin profit. */
+ let pendingTotal=0;
+
+ rows.forEach(x=>{
+  if(String(x.status||"").toLowerCase().trim()!=="pending")return;
+
+  const orderItems=items.filter(i=>String(i.order_id)===String(x.id));
+  const itemTotal=orderItems.reduce(
+   (sum,i)=>sum+Number(i.unit_price||0)*Number(i.quantity||0),0
+  );
+  const productPrice=orderItems.length
+   ?itemTotal
+   :Number(x.total_amount??x.product_price??0);
+
+  if(Number.isFinite(productPrice))pendingTotal+=productPrice;
+ });
+
+ const pendingEl=document.getElementById("pendingOrdersTotal");
+ const balanceEl=document.getElementById("customerAddBalanceTotal");
+ if(pendingEl)pendingEl.textContent="$"+money(pendingTotal);
+ if(balanceEl)balanceEl.textContent="$"+money(totalAddBalance);
+
+ if(!pageIs("orders",version))return;
+
  const list=document.getElementById("orderList");
  if(!list||!list.isConnected)return;
 
  list.innerHTML=rows.length?
- "<div class='tablewrap'><table><tr><th>Customer</th><th>Order ID</th><th>Product / Quantity</th><th>Product Price</th><th>Profit</th><th>Expected Return</th><th>Status</th><th>Update</th></tr>"+
+ "<div class='tablewrap'><table><tr><th>Customer</th><th>Customer Add Balance</th><th>Order ID</th><th>Product / Quantity</th><th>Product Price</th><th>Profit</th><th>Expected Return</th><th>Status</th><th>Update</th></tr>"+
  rows.map(x=>{
   const orderItems=items.filter(i=>String(i.order_id)===String(x.id));
   const itemTotal=orderItems.reduce((sum,i)=>sum+Number(i.unit_price||0)*Number(i.quantity||0),0);
   const productPrice=orderItems.length?itemTotal:Number(x.total_amount??x.product_price??0);
   const profit=Number(x.admin_profit||0);
+  const customerAddBalance=addBalanceByCustomer[String(x.customer_id)]||0;
   const itemText=orderItems.length?orderItems.map(i=>`
    <div><b>${esc(i.product_name||"Product")}</b><br>
    Quantity: ${esc(i.quantity)}<br>Unit Price: $${money(i.unit_price)}</div>
   `).join("<hr>"):"Product details unavailable";
   return `<tr>
    <td>${esc(customerName(x.customer_id))}<br>${esc(customerEmail(x.customer_id))}</td>
+   <td><b>$${money(customerAddBalance)}</b></td>
    <td>${esc(x.id)}</td><td>${itemText}</td>
    <td>$${money(productPrice)}</td><td>$${money(profit)}</td>
    <td><b>$${money(productPrice+profit)}</b></td><td><b>${esc(x.status)}</b></td>
