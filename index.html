@@ -207,10 +207,6 @@ button,input,select,textarea{font-size:14px}
    <div class="stat"><div class="stat-icon">📦</div><div class="stat-label">My Products</div><strong id="homeProducts">0</strong><button onclick="openPage('products')">View Products</button></div>
    <div class="stat"><div class="stat-icon">💵</div><div class="stat-label">Total Profit</div><strong id="homeProfit" class="purple">$0.00</strong><button onclick="openPage('wallet')">View Profit</button></div>
   </div>
-  <div class="card" style="margin-top:15px">
-   <h3>Recent Orders <button class="link" style="float:right" onclick="openPage('orders')">View All →</button></h3>
-   <div id="recentOrders">Loading orders...</div>
-  </div>
   <div class="card score-box">
    <h3>Your Credit Score</h3><div class="score-number" id="scoreDisplay">-</div>
    <div class="score-track"><div class="score-fill" id="scoreFill" style="width:0%"></div></div>
@@ -230,6 +226,10 @@ button,input,select,textarea{font-size:14px}
  </section>
 
  <section id="walletPage" class="page hidden">
+  <div class="card" style="margin-top:15px">
+   <h3>Recent Orders <button class="link" style="float:right" onclick="openPage('orders')">View All →</button></h3>
+   <div id="recentOrders">Loading orders...</div>
+  </div>
   <div class="stat">Available Balance<strong id="walletBalance" class="green">$0.00</strong></div>
   <div class="stat">Total Profit<strong id="walletProfit" class="purple">$0.00</strong></div>
   <div class="stat">Applied Balance<strong id="walletApplied" class="blue">$0.00</strong></div>
