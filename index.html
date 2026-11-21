@@ -997,8 +997,14 @@ $("kycForm").addEventListener("submit",async e=>{
   if(uploadError)throw uploadError;
   const {error}=await db.from("kyc_submissions").insert({customer_id:currentUser.id,document_type:type,document_url:path,status:"Pending"});
   if(error)throw error;
-  $("kycForm").reset();await loadKyc(currentUser);
-  $("kycStatus").textContent="KYC submitted successfully. Please wait for admin approval.";
+  $("kycForm").reset();
+  isKycApproved=false;
+  isKycPending=true;
+  const statusEl=$("verificationStatus"),section=$("kycSection"),messageEl=$("kycStatus");
+  if(statusEl){statusEl.textContent="WAIT FOR VERIFICATION";statusEl.className="status pending";}
+  if(section)section.classList.add("hidden");
+  if(messageEl)messageEl.textContent="KYC submitted successfully. Please wait for admin verification. You cannot submit KYC again while it is pending.";
+  updateKycLocks();
  }catch(err){$("kycStatus").textContent="KYC error: "+err.message}
  $("kycButton").disabled=false;
 });
