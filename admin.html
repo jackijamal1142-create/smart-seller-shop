@@ -41,6 +41,13 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere}
 .order-calculation{background:#f4f6fb;padding:12px;border-radius:8px;margin:12px 0}
 .order-calculation p{display:flex;justify-content:space-between;gap:12px}
 .order-calculation strong{color:#6256cf}
+.chat-customer{padding:15px;border:1px solid #e1e6ef;border-radius:9px;margin:10px 0;background:white}
+.chat-customer:hover{background:#f5f6ff}
+.chat-bubble{padding:13px;border-radius:10px;margin:10px 0;overflow-wrap:anywhere}
+.chat-from-customer{background:#edf3fb;margin-right:8%}
+.chat-from-admin{background:#e5f7eb;margin-left:8%}
+.chat-time{font-size:11px;color:#77849a;margin-top:7px}
+.chat-email{background:#65738a;margin:5px 0}
 @media(max-width:760px){
 #layout{flex-direction:column}
 aside{width:100%;display:none}
@@ -96,6 +103,7 @@ const IMAGE_BUCKET="product-images";
 
 let db=null,customers=[],products=[],current="dashboard";
 let pageVersion=0,profitEdited=false;
+window.activeSupportCustomerId=null;
 
 try{
  if(!window.supabase)throw new Error("Supabase library load nahi hui.");
@@ -939,40 +947,169 @@ async function kycStatus(id,status){
  }catch(e){note("KYC update error: "+e.message,true)}
 }
 
-/* CUSTOMER SERVICE */
+/* CUSTOMER SERVICE CHAT */
 async function supportPage(version=pageVersion){
+ window.activeSupportCustomerId=null;
  await loadCustomers();
  if(!pageIs("support_messages",version))return;
+
  const r=await db.from("support_messages").select("*")
-  .order("created_at",{ascending:false}).limit(300);
+  .order("created_at",{ascending:false}).limit(1000);
  if(r.error)throw r.error;
  if(!pageIs("support_messages",version))return;
+
+ const grouped={};
+ (r.data||[]).forEach(message=>{
+  const id=String(message.customer_id);
+  if(!grouped[id]){
+   grouped[id]={
+    customer_id:message.customer_id,
+    latest:message,
+    count:0,
+    unanswered:0
+   };
+  }
+  grouped[id].count++;
+  if(!message.reply)grouped[id].unanswered++;
+ });
+
+ const list=Object.values(grouped).sort((a,b)=>
+  new Date(b.latest.created_at||0)-new Date(a.latest.created_at||0)
+ );
+
  putContent(`
- <h2>Customer Service</h2>
- <button class="gray" onclick="supportPage()">Refresh Messages</button>
- <div id="supportList"></div>
+  <h2>Customer Service Chat</h2>
+  <p class="muted">Customer ki Gmail par click karke uski poori chat kholein.</p>
+  <button class="gray" onclick="supportPage()">Refresh Chats</button>
+  <input id="supportSearch" placeholder="Search customer name or Gmail" oninput="filterSupportCustomers()">
+  <div id="supportList"></div>
  `,"support_messages",version);
- const target=document.getElementById("supportList");
- if(!target)return;
- target.innerHTML=(r.data||[]).map(x=>`
- <div class="panel">
- <b>${esc(customerName(x.customer_id))}</b>
- <p>Gmail: ${esc(customerEmail(x.customer_id))}</p>
- <p>Customer Message: ${esc(x.message)}</p>
- <label>Your Reply</label>
- <textarea id="reply_${esc(x.id)}">${esc(x.reply||"")}</textarea>
- <button class="green" onclick="sendReply('${esc(x.id)}')">Send Reply</button>
- </div>`).join("")||"No messages.";
+
+ window.supportCustomerList=list;
+ renderSupportCustomers(list);
 }
+
+function renderSupportCustomers(list){
+ const target=document.getElementById("supportList");
+ if(!target||!target.isConnected)return;
+
+ target.innerHTML=list.map(c=>{
+  const id=String(c.customer_id);
+  const email=customerEmail(id);
+  return `
+   <div class="chat-customer">
+    <h3>${esc(customerName(id))}</h3>
+    <p><b>Gmail:</b></p>
+    <button class="chat-email"
+      onclick="openSupportChat('${esc(id)}')">${esc(email)}</button>
+    <p>Messages: ${c.count}</p>
+    <p>Unanswered messages: <b>${c.unanswered}</b></p>
+    <p class="muted">Latest message: ${esc(c.latest.message||"")}</p>
+    <button class="green" onclick="openSupportChat('${esc(id)}')">Open Chat</button>
+   </div>
+  `;
+ }).join("")||"No customer messages yet.";
+}
+
+function filterSupportCustomers(){
+ const q=val("supportSearch").toLowerCase();
+ const list=window.supportCustomerList||[];
+ const filtered=list.filter(c=>{
+  const id=String(c.customer_id);
+  return (
+   String(customerName(id)).toLowerCase().includes(q)||
+   customerEmail(id).toLowerCase().includes(q)
+  );
+ });
+ renderSupportCustomers(filtered);
+}
+
+async function openSupportChat(customerId){
+ window.activeSupportCustomerId=String(customerId);
+ const version=pageVersion;
+
+ try{
+  const r=await db.from("support_messages").select("*")
+   .eq("customer_id",customerId)
+   .order("created_at",{ascending:true});
+
+  if(r.error)throw r.error;
+  if(!pageIs("support_messages",version))return;
+
+  putContent(`
+   <h2>Customer Chat</h2>
+   <div class="panel">
+    <h3>${esc(customerName(customerId))}</h3>
+    <p><b>Gmail:</b> ${esc(customerEmail(customerId))}</p>
+    <button class="gray" onclick="supportPage()">← Back to Customers</button>
+    <button class="gray" onclick="openSupportChat('${esc(customerId)}')">Refresh Chat</button>
+   </div>
+   <div id="supportChatMessages"></div>
+  `,"support_messages",version);
+
+  const target=document.getElementById("supportChatMessages");
+  if(!target)return;
+
+  target.innerHTML=(r.data||[]).map(m=>{
+   const date=m.created_at?new Date(m.created_at).toLocaleString():"";
+   return `
+    <div class="panel">
+     <div class="chat-bubble chat-from-customer">
+      <b>Customer</b>
+      <p>${esc(m.message||"")}</p>
+      <div class="chat-time">${esc(date)}</div>
+     </div>
+
+     ${m.reply?`
+      <div class="chat-bubble chat-from-admin">
+       <b>Admin Reply</b>
+       <p>${esc(m.reply)}</p>
+      </div>
+     `:`
+      <p class="muted">Waiting for Admin Reply</p>
+     `}
+
+     <label>Reply to this message</label>
+     <textarea id="reply_${esc(m.id)}" rows="3"
+      placeholder="Write your reply...">${esc(m.reply||"")}</textarea>
+     <button class="green" id="replyButton_${esc(m.id)}"
+      onclick="sendReply('${esc(m.id)}')">Send Reply</button>
+    </div>
+   `;
+  }).join("")||"<div class='panel'>No messages from this customer yet.</div>";
+
+ }catch(e){
+  note("Chat load error: "+e.message,true);
+ }
+}
+
 async function sendReply(id){
  const el=document.getElementById("reply_"+id);
- if(!el||!el.value.trim())return note("Reply likhein.",true);
- const r=await db.from("support_messages").update({
-  reply:el.value.trim(),status:"answered"
- }).eq("id",id);
- if(r.error)return note(r.error.message,true);
- note("Reply customer ke message mein save ho gaya.");
- if(current==="support_messages")await supportPage();
+ if(!el||!el.value.trim())return note("Please write a reply.",true);
+
+ const customerId=window.activeSupportCustomerId;
+ const button=document.getElementById("replyButton_"+id);
+ if(button)button.disabled=true;
+
+ try{
+  const r=await db.from("support_messages").update({
+   reply:el.value.trim(),
+   status:"answered"
+  }).eq("id",id);
+
+  if(r.error)throw r.error;
+
+  note("Reply sent successfully. Customer can see it in Support.");
+
+  if(customerId){
+   await openSupportChat(customerId);
+  }
+ }catch(e){
+  note("Reply error: "+e.message,true);
+ }finally{
+  const b=document.getElementById("replyButton_"+id);
+  if(b)b.disabled=false;
+ }
 }
 
 /* NOTIFICATIONS */
