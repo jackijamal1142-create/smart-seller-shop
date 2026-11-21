@@ -97,6 +97,7 @@ const IMAGE_BUCKET="product-images";
 
 let db=null,customers=[],products=[],current="dashboard";
 let profitEdited=false;
+let pageVersion=0;
 
 try{
  if(!window.supabase)throw new Error("Supabase library load nahi hui.");
@@ -115,6 +116,7 @@ function esc(v){
 }
 function note(t,bad=false){
  const n=document.getElementById("notice");
+ if(!n)return;
  n.textContent=t;
  n.className=bad?"error":"ok";
 }
@@ -167,7 +169,8 @@ async function check(){
   if(a.data)await start();
   else await db.auth.signOut();
  }catch(e){
-  document.getElementById("loginError").textContent=e.message;
+  const el=document.getElementById("loginError");
+  if(el)el.textContent=e.message;
  }
 }
 
@@ -204,6 +207,7 @@ function renderSimple(data){
 
 async function go(page,btn){
  current=page;
+ pageVersion++;
  document.querySelectorAll("aside button").forEach(x=>x.classList.remove("active"));
  if(btn)btn.classList.add("active");
  document.querySelector("aside").classList.remove("open");
@@ -224,6 +228,7 @@ async function go(page,btn){
 
 /* DASHBOARD */
 async function dashboard(){
+ const version=pageVersion;
  const tables=[
   ["profiles","Customers"],
   ["products","Products"],
@@ -235,9 +240,12 @@ async function dashboard(){
  let html="<h2>Dashboard</h2><div class='cards'>";
  for(const [table,name] of tables){
   const r=await db.from(table).select("*",{count:"exact",head:true});
+  if(version!==pageVersion||current!=="dashboard")return;
   html+=`<div class="stat">${name}<strong>${r.error?"Error":r.count??0}</strong></div>`;
  }
- document.getElementById("content").innerHTML=html+"</div>";
+ if(version!==pageVersion||current!=="dashboard")return;
+ const content=document.getElementById("content");
+ if(content)content.innerHTML=html+"</div>";
 }
 
 /* PRODUCTS */
@@ -264,8 +272,12 @@ function previewProductImage(){
 }
 
 async function productPage(){
+ const version=pageVersion;
  await loadProducts();
- document.getElementById("content").innerHTML=`
+ if(version!==pageVersion||current!=="products")return;
+ const content=document.getElementById("content");
+ if(!content)return;
+ content.innerHTML=`
  <h2>Products</h2>
  <div class="panel">
  <h3>Create Product</h3>
@@ -283,7 +295,9 @@ async function productPage(){
 }
 
 function renderProducts(){
- document.getElementById("productList").innerHTML=
+ const el=document.getElementById("productList");
+ if(!el)return;
+ el.innerHTML=
  "<div class='tablewrap'><table><tr><th>Picture</th><th>Name</th><th>Price</th><th>Category</th><th>Actions</th></tr>"+
  products.map(p=>`
  <tr>
@@ -303,20 +317,21 @@ async function addProduct(){
   return note("Product name aur valid price likhein.",true);
 
  const b=document.getElementById("addProductButton");
+ if(!b)return;
  b.disabled=true;
  try{
-  const image=await uploadProductImage(document.getElementById("pimagefile").files[0]);
+  const image=await uploadProductImage(document.getElementById("pimagefile")?.files?.[0]);
   const r=await db.from("products").insert({
    name,price,category:val("pcat")||null,
    image:image,image_url:image
   });
   if(r.error)throw r.error;
   note("Product successfully add ho gaya.");
-  await productPage();
+  if(current==="products")await productPage();
  }catch(e){note(e.message,true);}
  finally{
-  if(document.getElementById("addProductButton"))
-   document.getElementById("addProductButton").disabled=false;
+  const button=document.getElementById("addProductButton");
+  if(button)button.disabled=false;
  }
 }
 
@@ -352,7 +367,7 @@ async function editProduct(id){
  }).eq("id",id);
  if(r.error)return note(r.error.message,true);
  note("Product updated.");
- await productPage();
+ if(current==="products")await productPage();
 }
 
 async function deleteProduct(id){
@@ -360,14 +375,17 @@ async function deleteProduct(id){
  const r=await db.from("products").delete().eq("id",id);
  if(r.error)return note(r.error.message,true);
  note("Product deleted.");
- await productPage();
+ if(current==="products")await productPage();
 }
 
 /* CUSTOMER PRODUCTS */
 async function customerProductsPage(){
+ const version=pageVersion;
  await loadCustomers();
+ if(version!==pageVersion||current!=="customer_products")return;
  const r=await db.from("customer_products").select("*").limit(1000);
  if(r.error)throw r.error;
+ if(version!==pageVersion||current!=="customer_products")return;
 
  const groups={};
  (r.data||[]).forEach(p=>{
@@ -375,7 +393,9 @@ async function customerProductsPage(){
  });
  window.customerProductGroups=groups;
 
- document.getElementById("content").innerHTML=`
+ const content=document.getElementById("content");
+ if(!content)return;
+ content.innerHTML=`
  <h2>Customer Products</h2>
  <div class="panel">
  <input id="cpSearch" placeholder="Search customer name or Gmail" oninput="filterCP()">
@@ -385,7 +405,9 @@ async function customerProductsPage(){
 }
 
 function renderCP(ids){
- document.getElementById("customerProductList").innerHTML=
+ const el=document.getElementById("customerProductList");
+ if(!el)return;
+ el.innerHTML=
  ids.map(id=>`
  <div class="customer" onclick="showCustomerProducts('${esc(id)}')">
  <b>${esc(customerName(id))}</b><br>
@@ -405,7 +427,9 @@ function filterCP(){
 function showCustomerProducts(id){
  const items=window.customerProductGroups[id]||[];
  const c=customers.find(x=>String(x.id)===String(id));
- document.getElementById("content").innerHTML=`
+ const content=document.getElementById("content");
+ if(!content)return;
+ content.innerHTML=`
  <button class="gray" onclick="customerProductsPage()">← Back</button>
  <div class="panel"><h2>${esc(customerName(id))}</h2>
  Gmail: ${esc(c?.email||"Email not available")}</div>
@@ -414,10 +438,14 @@ function showCustomerProducts(id){
 
 /* ORDERS */
 async function ordersPage(){
+ const version=pageVersion;
  await Promise.all([loadCustomers(),loadProducts()]);
+ if(version!==pageVersion||current!=="orders")return;
  profitEdited=false;
 
- document.getElementById("content").innerHTML=`
+ const content=document.getElementById("content");
+ if(!content)return;
+ content.innerHTML=`
  <h2>Orders</h2>
  <div class="panel">
  <h3>Send Order to Customer</h3>
@@ -461,17 +489,19 @@ function calcOrder(resetProfit=false){
  const unitPrice=Number(p?.price||0);
  const productPrice=unitPrice*validQty;
  const profitInput=document.getElementById("oprofit");
+ const priceEl=document.getElementById("productPrice");
+ const profitEl=document.getElementById("profitDisplay");
+ const returnEl=document.getElementById("expectedReturn");
+ if(!profitInput||!priceEl||!profitEl||!returnEl)return;
 
  if(resetProfit||!profitEdited){
   profitInput.value=money(productPrice*0.20);
  }
-
  const profit=Number(profitInput.value||0);
  const expectedReturn=productPrice+profit;
-
- document.getElementById("productPrice").textContent="$"+money(productPrice);
- document.getElementById("profitDisplay").textContent="$"+money(profit);
- document.getElementById("expectedReturn").textContent="$"+money(expectedReturn);
+ priceEl.textContent="$"+money(productPrice);
+ profitEl.textContent="$"+money(profit);
+ returnEl.textContent="$"+money(expectedReturn);
 }
 
 async function sendOrder(){
@@ -490,11 +520,11 @@ async function sendOrder(){
  const total=unitPrice*qty;
  const profit=Number(val("oprofit"));
  const expectedReturn=total+profit;
-
  if(!Number.isFinite(profit)||profit<0)
   return note("Profit amount check karein.",true);
 
  const b=document.getElementById("sendOrderButton");
+ if(!b)return;
  b.disabled=true;
 
  try{
@@ -524,16 +554,20 @@ async function sendOrder(){
    " | Profit: $"+money(profit)+
    " | Expected Return: $"+money(expectedReturn));
 
-  document.getElementById("oproduct").value="";
-  document.getElementById("oqty").value="1";
-  profitEdited=false;
-  calcOrder(true);
-  await loadOrders();
-
+  if(current==="orders"){
+   const productSelect=document.getElementById("oproduct");
+   const qtyInput=document.getElementById("oqty");
+   if(productSelect)productSelect.value="";
+   if(qtyInput)qtyInput.value="1";
+   profitEdited=false;
+   calcOrder(true);
+   await loadOrders();
+  }
  }catch(e){
   note("Order save error: "+e.message,true);
  }finally{
-  b.disabled=false;
+  const button=document.getElementById("sendOrderButton");
+  if(button)button.disabled=false;
  }
 }
 
@@ -545,7 +579,6 @@ async function creditCompletedOrder(orderId){
   .single();
 
  if(orderResult.error)throw orderResult.error;
-
  const order=orderResult.data;
  if(String(order.status).toLowerCase()!=="completed")return;
 
@@ -601,12 +634,18 @@ async function creditCompletedOrder(orderId){
  }
 }
 
-/* LOAD ORDERS */
+/* LOAD ORDERS - NULL ERROR FIX */
 async function loadOrders(){
+ const version=pageVersion;
+ if(current!=="orders")return;
+
  const r=await db.from("orders").select("*")
   .order("created_at",{ascending:false}).limit(300);
 
- if(r.error)return note(r.error.message,true);
+ if(r.error){
+  if(current==="orders")note(r.error.message,true);
+  return;
+ }
  const rows=r.data||[];
 
  for(const order of rows){
@@ -615,22 +654,32 @@ async function loadOrders(){
     await creditCompletedOrder(order.id);
    }catch(e){
     console.error("Wallet credit error:",order.id,e.message);
-    note("Wallet credit error: "+e.message,true);
+    if(current==="orders")note("Wallet credit error: "+e.message,true);
    }
   }
  }
 
+ if(version!==pageVersion||current!=="orders")return;
+
  await loadCustomers();
+ if(version!==pageVersion||current!=="orders")return;
 
  let items=[];
  if(rows.length){
   const ids=rows.map(x=>x.id);
   const ir=await db.from("order_items").select("*").in("order_id",ids);
-  if(ir.error)return note("Order items load error: "+ir.error.message,true);
+  if(ir.error){
+   if(current==="orders")note("Order items load error: "+ir.error.message,true);
+   return;
+  }
   items=ir.data||[];
  }
 
- document.getElementById("orderList").innerHTML=rows.length?
+ if(version!==pageVersion||current!=="orders")return;
+ const orderList=document.getElementById("orderList");
+ if(!orderList||!orderList.isConnected)return;
+
+ orderList.innerHTML=rows.length?
  "<div class='tablewrap'><table>"+
  "<tr><th>Customer</th><th>Order ID</th><th>Product / Quantity</th>"+
  "<th>Product Price</th><th>Profit</th><th>Expected Return</th>"+
@@ -670,6 +719,9 @@ async function loadOrders(){
   </tr>`;
  }).join("")+"</table></div>":"No orders found.";
 }
+</script>
+</body>
+</html>
 
 /* UPDATE ORDER STATUS */
 async function updateOrder(id){
@@ -696,7 +748,7 @@ async function updateOrder(id){
   }else{
    note("Order successfully "+status+" ho gaya.");
   }
-  await loadOrders();
+  if(current==="orders")await loadOrders();
  }catch(e){
   note("Order save error: "+e.message,true);
  }finally{
@@ -707,8 +759,14 @@ async function updateOrder(id){
 
 /* WALLET MANAGEMENT */
 async function walletPage(){
+ const version=pageVersion;
  await loadCustomers();
- document.getElementById("content").innerHTML=`
+ if(version!==pageVersion||current!=="wallet_transactions")return;
+
+ const content=document.getElementById("content");
+ if(!content)return;
+
+ content.innerHTML=`
  <h2>Wallet Management</h2>
  <div class="panel">
  <label>Customer</label>
@@ -743,6 +801,7 @@ async function walletAction(){
   return note("Customer aur valid amount select karein.",true);
 
  const b=document.getElementById("walletSaveButton");
+ if(!b)return;
  b.disabled=true;
  try{
   const r=await db.from("wallet_transactions").insert({
@@ -756,17 +815,19 @@ async function walletAction(){
   if(r.error)throw r.error;
 
   note("Wallet transaction save ho gaya.");
-  document.getElementById("wamount").value="";
-  document.getElementById("wdesc").value="";
-  await walletHistory();
+  const amountInput=document.getElementById("wamount");
+  const descInput=document.getElementById("wdesc");
+  if(amountInput)amountInput.value="";
+  if(descInput)descInput.value="";
+  if(current==="wallet_transactions")await walletHistory();
  }catch(e){
   note(e.message,true);
  }finally{
-  b.disabled=false;
+  const button=document.getElementById("walletSaveButton");
+  if(button)button.disabled=false;
  }
 }
 
-/* UPDATED ADMIN WALLET CALCULATION */
 async function walletHistory(){
  const cid=val("wcustomer");
  const summary=document.getElementById("walletSummary");
@@ -836,14 +897,19 @@ async function walletHistory(){
    if(Number.isFinite(amount)&&amount>0)applied+=amount;
   });
 
-  summary.innerHTML=`
-   <div class="cards">
-    <div class="stat">Available Balance<strong>$${money(balance)}</strong></div>
-    <div class="stat">Total Profit<strong>$${money(profit)}</strong></div>
-    <div class="stat">Applied Balance<strong>$${money(applied)}</strong></div>
-   </div>`;
+  const latestSummary=document.getElementById("walletSummary");
+  const latestList=document.getElementById("walletList");
 
-  list.innerHTML=renderSimple(data);
+  if(latestSummary){
+   latestSummary.innerHTML=`
+    <div class="cards">
+     <div class="stat">Available Balance<strong>$${money(balance)}</strong></div>
+     <div class="stat">Total Profit<strong>$${money(profit)}</strong></div>
+     <div class="stat">Applied Balance<strong>$${money(applied)}</strong></div>
+    </div>`;
+  }
+
+  if(latestList)latestList.innerHTML=renderSimple(data);
 
  }catch(e){
   note("Wallet load error: "+e.message,true);
@@ -852,17 +918,27 @@ async function walletHistory(){
 
 /* WITHDRAWALS */
 async function withdrawalsPage(){
+ const version=pageVersion;
  await loadCustomers();
+ if(version!==pageVersion||current!=="withdrawals")return;
+
  const r=await db.from("withdrawals").select("*")
   .order("created_at",{ascending:false}).limit(300);
  if(r.error)throw r.error;
+ if(version!==pageVersion||current!=="withdrawals")return;
 
- document.getElementById("content").innerHTML=`
+ const content=document.getElementById("content");
+ if(!content)return;
+
+ content.innerHTML=`
  <h2>Withdrawals</h2>
  <button class="gray" onclick="withdrawalsPage()">Refresh Requests</button>
  <div id="withdrawList"></div>`;
 
- document.getElementById("withdrawList").innerHTML=(r.data||[]).map(x=>`
+ const list=document.getElementById("withdrawList");
+ if(!list)return;
+
+ list.innerHTML=(r.data||[]).map(x=>`
  <div class="panel">
  <b>${esc(customerName(x.customer_id))}</b>
  <p>Gmail: ${esc(customerEmail(x.customer_id))}</p>
@@ -885,22 +961,32 @@ async function withdrawStatus(id,status){
 
  if(r.error)return note(r.error.message,true);
  note("Withdrawal updated.");
- await withdrawalsPage();
+ if(current==="withdrawals")await withdrawalsPage();
 }
 
 /* KYC */
 async function kycPage(){
+ const version=pageVersion;
  await loadCustomers();
+ if(version!==pageVersion||current!=="kyc_submissions")return;
+
  const r=await db.from("kyc_submissions").select("*")
   .order("created_at",{ascending:false}).limit(300);
  if(r.error)throw r.error;
+ if(version!==pageVersion||current!=="kyc_submissions")return;
 
- document.getElementById("content").innerHTML=`
+ const content=document.getElementById("content");
+ if(!content)return;
+
+ content.innerHTML=`
  <h2>KYC Requests</h2>
  <button class="gray" onclick="kycPage()">Refresh</button>
  <div id="kycList"></div>`;
 
- document.getElementById("kycList").innerHTML=(r.data||[]).map(x=>`
+ const list=document.getElementById("kycList");
+ if(!list)return;
+
+ list.innerHTML=(r.data||[]).map(x=>`
  <div class="panel">
  <b>${esc(customerName(x.customer_id))}</b>
  <p>Gmail: ${esc(customerEmail(x.customer_id))}</p>
@@ -915,22 +1001,32 @@ async function kycStatus(id,status){
  const r=await db.from("kyc_submissions").update({status}).eq("id",id);
  if(r.error)return note(r.error.message,true);
  note("KYC updated.");
- await kycPage();
+ if(current==="kyc_submissions")await kycPage();
 }
 
 /* CUSTOMER SERVICE */
 async function supportPage(){
+ const version=pageVersion;
  await loadCustomers();
+ if(version!==pageVersion||current!=="support_messages")return;
+
  const r=await db.from("support_messages").select("*")
   .order("created_at",{ascending:false}).limit(300);
  if(r.error)throw r.error;
+ if(version!==pageVersion||current!=="support_messages")return;
 
- document.getElementById("content").innerHTML=`
+ const content=document.getElementById("content");
+ if(!content)return;
+
+ content.innerHTML=`
  <h2>Customer Service</h2>
  <button class="gray" onclick="supportPage()">Refresh Messages</button>
  <div id="supportList"></div>`;
 
- document.getElementById("supportList").innerHTML=(r.data||[]).map(x=>`
+ const list=document.getElementById("supportList");
+ if(!list)return;
+
+ list.innerHTML=(r.data||[]).map(x=>`
  <div class="panel">
  <b>${esc(customerName(x.customer_id))}</b>
  <p>Gmail: ${esc(customerEmail(x.customer_id))}</p>
@@ -951,16 +1047,21 @@ async function sendReply(id){
 
  if(r.error)return note(r.error.message,true);
  note("Reply customer ke message mein save ho gaya.");
- await supportPage();
+ if(current==="support_messages")await supportPage();
 }
 
 /* NOTIFICATIONS */
 async function notificationsPage(){
+ const version=pageVersion;
  const r=await db.from("notifications").select("*")
   .order("created_at",{ascending:false}).limit(300);
  if(r.error)throw r.error;
+ if(version!==pageVersion||current!=="notifications")return;
 
- document.getElementById("content").innerHTML=`
+ const content=document.getElementById("content");
+ if(!content)return;
+
+ content.innerHTML=`
  <h2>Notifications</h2>
  <p class="muted">Website notifications yahan show hongi.</p>
  <button class="gray" onclick="notificationsPage()">Refresh</button>
@@ -969,12 +1070,19 @@ async function notificationsPage(){
 
 /* CREDIT SCORE */
 async function creditPage(){
+ const version=pageVersion;
  await loadCustomers();
+ if(version!==pageVersion||current!=="credit_score_history")return;
+
  const r=await db.from("credit_score_history").select("*")
   .order("created_at",{ascending:false}).limit(300);
  if(r.error)throw r.error;
+ if(version!==pageVersion||current!=="credit_score_history")return;
 
- document.getElementById("content").innerHTML=`
+ const content=document.getElementById("content");
+ if(!content)return;
+
+ content.innerHTML=`
  <h2>Credit Score History</h2>
  <div class="panel">
  <h3>Change Customer Credit Score</h3>
@@ -1027,7 +1135,7 @@ async function saveCreditScore(){
  }else{
   note("Credit score successfully updated.");
  }
- await creditPage();
+ if(current==="credit_score_history")await creditPage();
 }
 
 /* START */
