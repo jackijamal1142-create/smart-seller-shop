@@ -356,24 +356,24 @@ async function markCustomerBadgeSeen(kind){
    const latest=(r.data||[]).find(m=>String(m.sender_role||m.sender||"").toLowerCase()==="admin");
    if(latest?.created_at)localStorage.setItem(customerBadgeKey("messages"),latest.created_at);
    else localStorage.setItem(customerBadgeKey("messages"),new Date().toISOString());
-  }else localStorage.setItem(customerBadgeKey(kind),new Date().toISOString());
+  }
  }catch(e){console.warn("Mark notification read:",e.message)}
  refreshCustomerBadges();
 }
 async function refreshCustomerBadges(){
  if(!currentUser)return;
  try{
-  const orderSince=localStorage.getItem(customerBadgeKey("orders"))||new Date().toISOString();
   const messageSince=localStorage.getItem(customerBadgeKey("messages"))||new Date().toISOString();
   const results=await Promise.all([
-   db.from("orders").select("id,created_at").eq("customer_id",currentUser.id).gt("created_at",orderSince),
+   db.from("orders").select("id,status").eq("customer_id",currentUser.id),
    db.from("support_chat_messages").select("id,sender,sender_role,created_at").eq("customer_id",currentUser.id).order("created_at",{ascending:true}).limit(1000)
   ]);
   if(results[0].error)throw results[0].error;if(results[1].error)throw results[1].error;
+  const waitingPickup=(results[0].data||[]).filter(o=>["pending","pickup"].includes(String(o.status||"").toLowerCase().trim())).length;
   const newAdminMessages=(results[1].data||[]).filter(m=>String(m.sender_role||m.sender||"").toLowerCase()==="admin"&&m.created_at&&new Date(m.created_at)>new Date(messageSince));
-  const put=(id,n,label)=>{const el=$(id);if(!el)return;el.textContent=n?n+" New "+label+(n===1?"":"s"):"";el.classList.toggle("hidden",!n)};
-  put("customerOrdersBadge",results[0].data?.length||0,"Order");
-  put("customerMessagesBadge",newAdminMessages.length,"Message");
+  const put=(id,n,label)=>{const el=$(id);if(!el)return;el.textContent=n?n+" "+label+(n===1?"":"s"):"";el.classList.toggle("hidden",!n)};
+  put("customerOrdersBadge",waitingPickup,"Order");
+  put("customerMessagesBadge",newAdminMessages.length,"New Message");
  }catch(e){console.warn("Notification badge:",e.message)}
 }
 
@@ -382,7 +382,7 @@ window.openPage=function(page){
  document.querySelectorAll(".bottom-nav button").forEach(b=>b.classList.toggle("active",b.dataset.page===page));
  if(page==="home")loadHomeData();
  if(page==="products")showProductTab("shop");
- if(page==="orders"){markCustomerBadgeSeen("orders");loadOrders();}
+ if(page==="orders"){loadOrders();}
  if(page==="wallet"){loadWallet();loadWithdrawals();resetWithdrawScreen()}
  if(page==="support"){markCustomerBadgeSeen("messages");loadSupport();}
  if(page==="profile")loadProfile().then(()=>loadKyc(currentUser));
