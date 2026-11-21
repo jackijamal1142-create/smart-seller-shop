@@ -371,7 +371,8 @@ window.loadMyProducts=async function(){
  }catch(err){box.textContent="Products error: "+err.message}
 };
 
-/* ORDERS: Customer pickup button updates the order status to processing. */
+/* ORDERS: Pickup calls the secure Supabase function.
+   Supabase records the applied amount once and changes order status. */
 function orderPrice(o){return Number(o.product_price??o.total_amount??0)}
 function orderProfit(o){return Number(o.admin_profit??0)}
 function orderStatus(o){
@@ -385,19 +386,24 @@ async function pickupOrder(orderId,button,statusElement){
  button.disabled=true;
  button.textContent="Processing...";
  try{
-  const {data,error}=await db.from("orders")
-   .update({status:"processing"})
-   .eq("id",orderId)
-   .eq("customer_id",currentUser.id)
-   .select("id,status");
+  const {data,error}=await db.rpc("customer_pickup_order",{
+   p_order_id:orderId
+  });
 
   if(error)throw error;
-  if(!data||data.length===0)throw new Error("Order update permission denied. Please check orders RLS policy.");
+  if(!data||data.success!==true){
+   throw new Error(data?.message||"Pickup failed.");
+  }
 
   statusElement.className="status shipped";
   statusElement.textContent="PROCESSING";
   button.remove();
-  await loadOrders();
+
+  await Promise.all([
+   loadOrders(),
+   loadWallet()
+  ]);
+
  }catch(err){
   button.disabled=false;
   button.textContent="PICKUP";
@@ -464,7 +470,7 @@ function renderRecentOrders(){
  });
 }
 
-/* WALLET: Withdrawal and refund entries are read from wallet_transactions. */
+/* WALLET: Applied transactions reduce available balance and increase applied balance. */
 window.loadWallet=async function(){
  $("walletMessage").textContent="Loading wallet...";
  try{
@@ -481,7 +487,10 @@ window.loadWallet=async function(){
    if(!["approved","completed","success","successful","paid"].includes(status))return;
 
    if(type==="profit")profit+=amount;
-   else if(type.includes("applied"))applied+=amount;
+   else if(type==="applied"){
+    applied+=amount;
+    available-=amount;
+   }
    else if(type==="refund")available+=amount;
    else if(type==="withdrawal"||type.includes("minus")||type.includes("debit")||type.includes("payment")||type.includes("purchase"))available-=amount;
    else if(type.includes("add_balance")||type==="credit"||type==="deposit"||type==="income")available+=amount;
@@ -522,8 +531,7 @@ window.backToMethods=function(){
  $("withdrawOptions").classList.remove("hidden");
 };
 
-/* Supabase trigger automatically deducts withdrawal and refunds rejected requests.
-   Do NOT insert another wallet_transactions row here. */
+/* Supabase trigger handles withdrawal deduction and rejected-request refund. */
 async function submitWithdrawal(method,amount,details,formId,buttonId){
  $(buttonId).disabled=true;
  $("withdrawMessage").textContent="Submitting request...";
