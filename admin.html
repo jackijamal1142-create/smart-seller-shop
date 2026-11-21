@@ -23,7 +23,7 @@ aside button.active,aside button:hover{background:#34445f;color:#7ee6d2}
 main{padding:20px;flex:1;min-width:0}
 .panel,.stat{background:white;padding:16px;border-radius:11px;margin-bottom:14px;box-shadow:0 2px 9px #17243b0c}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
-.stat strong{display:block;font-size:25px;color:#6256cf;margin-top:7px}
+.stat strong{display:block;font-size:25px;color:#6256cf;margin-top:7px}\n.dashboard-stat{cursor:pointer;transition:transform .15s,box-shadow .15s}\n.dashboard-stat:hover,.dashboard-stat:focus{transform:translateY(-2px);box-shadow:0 4px 14px #17243b20;outline:2px solid #6256cf}\n.stat-hint{display:block;font-size:11px;color:#77849a;margin-top:6px}
 .tablewrap{overflow:auto}
 table{width:100%;border-collapse:collapse;font-size:13px;min-width:550px}
 td,th{text-align:left;padding:10px;border-bottom:1px solid #e6eaf0;vertical-align:top}
@@ -354,12 +354,12 @@ async function go(page,btn){
 
 /* DASHBOARD */
 async function dashboard(version){
- const tables=[["profiles","Customers"],["products","Products"],["orders","Orders"],["withdrawals","Withdrawals"],["kyc_submissions","KYC Requests"],["support_chat_messages","Messages"]];
+ const tables=[["profiles","Customers","customers"],["products","Products","products"],["orders","Orders","orders"],["withdrawals","Withdrawals","withdrawals"],["kyc_submissions","KYC Requests","kyc_submissions"],["support_chat_messages","Messages","support_messages"]];
  let html="<h2>Dashboard</h2><div class='cards'>";
- for(const [table,name] of tables){
+ for(const [table,name,page] of tables){
   const r=await db.from(table).select("*",{count:"exact",head:true});
   if(!pageIs("dashboard",version))return;
-  html+=`<div class="stat">${name}<strong>${r.error?"Error":r.count??0}</strong></div>`;
+  html+=`<div class="stat dashboard-stat" role="button" tabindex="0" onclick="go('${page}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();go('${page}')}">${name}<strong>${r.error?"Error":r.count??0}</strong><span class="stat-hint">Click to open</span></div>`;
  }
  putContent(html+"</div>","dashboard",version);
 }
