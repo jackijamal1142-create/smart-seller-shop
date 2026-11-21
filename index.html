@@ -259,7 +259,7 @@ button,input,select,textarea{font-size:14px}
   <div class="card">
    <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
     <img id="profileAvatar" src="" alt="Profile photo" style="width:76px;height:76px;border-radius:50%;object-fit:cover;background:#e6efff">
-    <div><strong id="profileName">-</strong><p class="muted" id="profileEmail">-</p></div>
+    <div><strong id="profileName">-</strong><p class="muted" id="profileEmail">-</p><p class="muted">Phone: <span id="profilePhone">-</span></p></div>
    </div>
    <form id="profileUpdateForm">
     <label for="profilePhoto"><strong>Profile Picture</strong></label>
@@ -837,8 +837,8 @@ $("profileUpdateForm").addEventListener("submit",async e=>{
   if(error)throw error;
   const {error:authError}=await db.auth.updateUser({data:{full_name:fullName,phone:phone}});
   if(authError)console.warn("Auth profile metadata:",authError.message);
-  $("profileName").textContent=fullName;$("profilePhone").textContent=phone||"-";
-  $("welcome").textContent=fullName;$("profileAvatar").src=avatarUrl;$("welcomeAvatar").src=avatarUrl;
+  if($("profileName"))$("profileName").textContent=fullName;if($("profilePhone"))$("profilePhone").textContent=phone||"-";
+  if($("welcome"))$("welcome").textContent=fullName;if($("profileAvatar"))$("profileAvatar").src=avatarUrl;if($("welcomeAvatar"))$("welcomeAvatar").src=avatarUrl;
   $("profilePhoto").value="";note.textContent="Profile updated successfully.";
  }catch(err){note.textContent="Profile update error: "+err.message}
  button.disabled=false;
