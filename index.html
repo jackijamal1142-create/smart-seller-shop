@@ -169,11 +169,6 @@ button,input,select,textarea{font-size:14px}
 </div>
 
 <div id="dashboard" class="hidden">
- <div class="welcome">
-  <div class="avatar">👤</div>
-  <div><small>Welcome back!</small><strong id="welcome">Customer</strong></div>
- </div>
-
  <div id="kycLockBanner" class="kyc-lock-note hidden">
   <strong>🔒 KYC Verification Required</strong><br>
   Your account is not verified. Please complete your KYC verification and wait for approval.
@@ -181,6 +176,10 @@ button,input,select,textarea{font-size:14px}
  </div>
 
  <section id="homePage" class="page">
+  <div class="welcome">
+   <img id="welcomeAvatar" class="avatar" src="" alt="Profile photo" style="object-fit:cover">
+   <div><small>Welcome back!</small><strong id="welcome">Customer</strong></div>
+  </div>
   <div class="page-title"><h2>Dashboard</h2><p class="muted">Here's your account overview.</p></div>
   <div class="stats">
    <div class="stat"><div class="stat-icon">💰</div><div class="stat-label">Wallet Balance</div><strong id="homeBalance" class="green">$0.00</strong><button class="green-btn" onclick="openPage('wallet')">View Wallet</button></div>
@@ -257,7 +256,23 @@ button,input,select,textarea{font-size:14px}
 
  <section id="profilePage" class="page hidden">
   <div class="page-title"><h2>My Profile</h2><p class="muted">Your account and verification details.</p></div>
-  <div class="card"><p><strong>Name:</strong> <span id="profileName">-</span></p><p><strong>Email:</strong> <span id="profileEmail">-</span></p><p><strong>Phone:</strong> <span id="profilePhone">-</span></p><p><strong>Credit Score:</strong> <span id="profileCredit">-</span></p></div>
+  <div class="card">
+   <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
+    <img id="profileAvatar" src="" alt="Profile photo" style="width:76px;height:76px;border-radius:50%;object-fit:cover;background:#e6efff">
+    <div><strong id="profileName">-</strong><p class="muted" id="profileEmail">-</p></div>
+   </div>
+   <form id="profileUpdateForm">
+    <label for="profilePhoto"><strong>Profile Picture</strong></label>
+    <input id="profilePhoto" type="file" accept="image/*">
+    <label for="editFullName"><strong>Full Name</strong></label>
+    <input id="editFullName" placeholder="Full Name" required>
+    <label for="editPhone"><strong>Phone Number</strong></label>
+    <input id="editPhone" type="tel" placeholder="Phone Number">
+    <button class="full" id="saveProfileButton">Save Profile</button>
+    <p id="profileUpdateMessage" class="message"></p>
+   </form>
+   <p><strong>Credit Score:</strong> <span id="profileCredit">-</span></p>
+  </div>
   <div class="card"><h3>KYC Verification</h3><div id="verificationStatus" class="status pending">Verification pending</div><div id="kycSection"><p class="muted">Please submit your identity document.</p><form id="kycForm"><select id="documentType" required><option value="">Select Document</option><option value="Passport">Passport</option><option value="National ID">National ID</option><option value="Driving Licence">Driving Licence</option></select><input id="kycFile" type="file" accept="image/*,.pdf" required><button class="full" id="kycButton">Submit KYC</button></form><p id="kycStatus" class="message"></p></div></div>
   <button class="full gray" onclick="logout()">Logout</button>
  </section>
@@ -770,21 +785,64 @@ async function loadProfile(){
  $("profileEmail").textContent=currentUser.email||"-";
  $("profileName").textContent=currentUser.user_metadata?.full_name||"-";
  $("profilePhone").textContent=currentUser.user_metadata?.phone||"-";
+ $("editFullName").value=currentUser.user_metadata?.full_name||"";
+ $("editPhone").value=currentUser.user_metadata?.phone||"";
  $("profileCredit").textContent="-";$("homeCredit").textContent="-";$("scoreDisplay").textContent="-";
+ let avatarUrl="";
  try{
   const {data,error}=await db.from("profiles").select("*").eq("id",currentUser.id).maybeSingle();
   if(error)throw error;
   if(data){
    const score=Number(data.credit_score||0);
    $("profileName").textContent=data.full_name||currentUser.user_metadata?.full_name||"-";
-   $("profilePhone").textContent=data.phone||currentUser.user_metadata?.phone||"-";
+   $("editFullName").value=data.full_name||currentUser.user_metadata?.full_name||"";
+   $("editPhone").value=data.phone||currentUser.user_metadata?.phone||"";
+   avatarUrl=data.avatar||"";
    $("profileCredit").textContent=safeText(data.credit_score);
    $("homeCredit").textContent=score+" / 1000";
    $("scoreDisplay").textContent=score;
    $("scoreFill").style.width=Math.max(0,Math.min(100,score/10))+"%";
   }
  }catch(err){console.error("Profile load:",err.message)}
+ const fallback="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100%" height="100%" fill="#dbeafe"/><text x="50%" y="57%" text-anchor="middle" font-size="48">👤</text></svg>');
+ $("profileAvatar").src=avatarUrl||fallback;
+ $("welcomeAvatar").src=avatarUrl||fallback;
+ $("welcome").textContent=$("profileName").textContent||currentUser.email||"Customer";
 }
+
+
+$("profilePhoto").addEventListener("change",()=>{
+ const file=$("profilePhoto").files[0];
+ if(file){if(!file.type.startsWith("image/")){msg("Please choose an image.");return} $("profileAvatar").src=URL.createObjectURL(file);}
+});
+$("profileUpdateForm").addEventListener("submit",async e=>{
+ e.preventDefault();
+ if(!currentUser)return;
+ const button=$("saveProfileButton"),note=$("profileUpdateMessage");
+ button.disabled=true;note.textContent="Saving profile...";
+ try{
+  const fullName=$("editFullName").value.trim(),phone=$("editPhone").value.trim();
+  if(!fullName)throw new Error("Enter your full name.");
+  let avatarUrl=$("profileAvatar").src;
+  const file=$("profilePhoto").files[0];
+  if(file){
+   if(file.size>5*1024*1024)throw new Error("Photo must be smaller than 5 MB.");
+   const ext=(file.name.split(".").pop()||"jpg").replace(/[^a-zA-Z0-9]/g,"");
+   const path=currentUser.id+"/profile_"+Date.now()+"."+ext;
+   const {error:uploadError}=await db.storage.from("avatars").upload(path,file,{upsert:true,contentType:file.type});
+   if(uploadError)throw uploadError;
+   avatarUrl=db.storage.from("avatars").getPublicUrl(path).data.publicUrl;
+  }
+  const {error}=await db.from("profiles").upsert({id:currentUser.id,full_name:fullName,phone:phone,avatar:avatarUrl},{onConflict:"id"});
+  if(error)throw error;
+  const {error:authError}=await db.auth.updateUser({data:{full_name:fullName,phone:phone}});
+  if(authError)console.warn("Auth profile metadata:",authError.message);
+  $("profileName").textContent=fullName;$("profilePhone").textContent=phone||"-";
+  $("welcome").textContent=fullName;$("profileAvatar").src=avatarUrl;$("welcomeAvatar").src=avatarUrl;
+  $("profilePhoto").value="";note.textContent="Profile updated successfully.";
+ }catch(err){note.textContent="Profile update error: "+err.message}
+ button.disabled=false;
+});
 
 async function loadHomeData(){
  if(!currentUser)return;
