@@ -222,10 +222,17 @@ button,input,select,textarea{font-size:14px}
   <p id="walletMessage" class="message"></p>
   <div class="card">
    <h3>Withdraw Money</h3>
-   <button class="full" id="withdrawOpenButton" onclick="openWithdrawOptions()">Withdraw</button>
+   <button class="full" id="withdrawOpenButton" onclick="openWithdrawMenu()">Withdraw</button>
+   <div id="withdrawMenu" class="hidden">
+    <div class="tabs">
+     <button type="button" onclick="openWithdrawOptions()">Withdraw</button>
+     <button type="button" onclick="openWithdrawalHistory()">History</button>
+    </div>
+    <button type="button" class="full gray" onclick="resetWithdrawScreen()">Back</button>
+   </div>
    <div id="withdrawOptions" class="hidden">
-    <div class="tabs"><button onclick="showWithdraw('usdt')">USDT</button><button onclick="showWithdraw('bank')">Bank Account</button></div>
-    <button class="full gray" onclick="resetWithdrawScreen()">Back</button>
+    <div class="tabs"><button type="button" onclick="showWithdraw('usdt')">USDT</button><button type="button" onclick="showWithdraw('bank')">Bank Account</button></div>
+    <button type="button" class="full gray" onclick="backToWithdrawMenu()">Back</button>
    </div>
    <form id="usdtForm" class="hidden">
     <h3>USDT Withdrawal</h3>
@@ -245,7 +252,10 @@ button,input,select,textarea{font-size:14px}
     <button type="button" class="full gray" onclick="backToMethods()">Back</button>
    </form>
    <p id="withdrawMessage" class="message"></p>
-   <div class="withdraw-history-wrap"><div class="withdraw-history-head"><strong>Withdrawal History</strong><button type="button" onclick="loadWithdrawals()">Refresh</button></div><div id="withdrawalHistory">Loading...</div></div>
+   <div id="withdrawalHistoryPanel" class="hidden">
+    <div class="withdraw-history-wrap"><div class="withdraw-history-head"><strong>Withdrawal History</strong><button type="button" onclick="loadWithdrawals()">Refresh</button></div><div id="withdrawalHistory">Loading...</div></div>
+    <button type="button" class="full gray" onclick="backToWithdrawMenu()">Back</button>
+   </div>
   </div>
  </section>
 
@@ -711,20 +721,33 @@ window.loadWallet=async function(){
 };
 
 window.resetWithdrawScreen=function(){
- ["withdrawOptions","usdtForm","bankForm"].forEach(id=>$(id).classList.add("hidden"));
+ ["withdrawMenu","withdrawOptions","withdrawalHistoryPanel","usdtForm","bankForm"].forEach(id=>$(id).classList.add("hidden"));
  $("withdrawOpenButton").classList.remove("hidden");
  $("withdrawMessage").textContent="";
 };
+window.openWithdrawMenu=function(){
+ $("withdrawOpenButton").classList.add("hidden");
+ $("withdrawMenu").classList.remove("hidden");
+ ["withdrawOptions","withdrawalHistoryPanel","usdtForm","bankForm"].forEach(id=>$(id).classList.add("hidden"));
+};
 window.openWithdrawOptions=function(){
  if(!requireKyc())return;
- $("withdrawOpenButton").classList.add("hidden");
+ $("withdrawMenu").classList.add("hidden");
  $("withdrawOptions").classList.remove("hidden");
  $("usdtForm").classList.add("hidden");$("bankForm").classList.add("hidden");
+};
+window.openWithdrawalHistory=function(){
+ $("withdrawMenu").classList.add("hidden");
+ $("withdrawalHistoryPanel").classList.remove("hidden");
+ loadWithdrawals();
+};
+window.backToWithdrawMenu=function(){
+ ["withdrawOptions","withdrawalHistoryPanel","usdtForm","bankForm"].forEach(id=>$(id).classList.add("hidden"));
+ $("withdrawMenu").classList.remove("hidden");
 };
 window.showWithdraw=function(method){
  if(!requireKyc())return;
  $("withdrawOptions").classList.add("hidden");
- $("withdrawOpenButton").classList.add("hidden");
  $("usdtForm").classList.toggle("hidden",method!=="usdt");
  $("bankForm").classList.toggle("hidden",method!=="bank");
 };
