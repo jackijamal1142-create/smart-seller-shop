@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -40,14 +39,15 @@ img.product{width:65px;height:65px;object-fit:cover;border-radius:7px}
 pre{white-space:pre-wrap;overflow-wrap:anywhere}
 .order-calculation{background:#f4f6fb;padding:12px;border-radius:8px;margin:12px 0}
 .order-calculation p{display:flex;justify-content:space-between;gap:12px}
-.order-calculation strong{color:#6256cf}
-.chat-customer{padding:15px;border:1px solid #e1e6ef;border-radius:9px;margin:10px 0;background:white}
-.chat-customer:hover{background:#f5f6ff}
-.chat-bubble{padding:13px;border-radius:10px;margin:10px 0;overflow-wrap:anywhere}
-.chat-from-customer{background:#edf3fb;margin-right:8%}
-.chat-from-admin{background:#e5f7eb;margin-left:8%}
-.chat-time{font-size:11px;color:#77849a;margin-top:7px}
-.chat-email{background:#65738a;margin:5px 0}
+.click-customer{color:#5145c5;font-weight:bold;cursor:pointer;text-decoration:underline}
+.profile-modal{position:fixed;inset:0;background:#0009;z-index:9999;display:none;overflow:auto;padding:15px}
+.profile-modal-box{background:white;max-width:900px;margin:25px auto;padding:20px;border-radius:12px}
+.profile-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.profile-field{background:#f3f5fa;padding:12px;border-radius:8px;overflow-wrap:anywhere}
+.chat-bubble{padding:12px;border-radius:10px;margin:9px 0;max-width:85%;overflow-wrap:anywhere}
+.chat-customer{background:#edf1fa;margin-right:auto}
+.chat-admin{background:#e1f6ef;margin-left:auto}
+.chat-meta{font-size:11px;color:#718096;margin-bottom:5px}
 @media(max-width:760px){
 #layout{flex-direction:column}
 aside{width:100%;display:none}
@@ -96,6 +96,13 @@ main{padding:12px}
 </main>
 </div>
 
+<div id="customerProfileModal" class="profile-modal">
+ <div class="profile-modal-box">
+  <button class="red" onclick="closeCustomerProfile()">Close</button>
+  <div id="customerProfileContent">Loading...</div>
+ </div>
+</div>
+
 <script>
 const SUPABASE_URL="https://biiagnjcyzvqbezabpxz.supabase.co";
 const SUPABASE_KEY="sb_publishable_QrBZWYfua111aN24MjlXHw_c-Cf5yB1";
@@ -103,26 +110,21 @@ const IMAGE_BUCKET="product-images";
 
 let db=null,customers=[],products=[],current="dashboard";
 let pageVersion=0,profitEdited=false;
-window.activeSupportCustomerId=null;
+let activeSupportCustomerId=null;
+let supportMessages=[];
 
 try{
  if(!window.supabase)throw new Error("Supabase library load nahi hui.");
  db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-}catch(e){
- document.getElementById("loginError").textContent=e.message;
-}
+}catch(e){document.getElementById("loginError").textContent=e.message}
 
 function val(id){return document.getElementById(id)?.value?.trim()||""}
 function esc(v){
- return String(v??"").replace(/[&<>"']/g,c=>({
- "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
- }[c]));
+ return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
 function note(t,bad=false){
  const n=document.getElementById("notice");
- if(!n)return;
- n.textContent=t;
- n.className=bad?"error":"ok";
+ if(n){n.textContent=t;n.className=bad?"error":"ok"}
 }
 function money(v){return Number(v||0).toFixed(2)}
 function imageOf(p){return p?.image_url||p?.image||""}
@@ -131,36 +133,24 @@ function putContent(html,page=current,version=pageVersion){
  if(!pageIs(page,version))return false;
  const el=document.getElementById("content");
  if(!el||!el.isConnected)return false;
- el.innerHTML=html;
- return true;
+ el.innerHTML=html;return true;
 }
 
 async function login(){
  if(!db)return;
- const b=document.getElementById("loginButton");
- b.disabled=true;
+ const b=document.getElementById("loginButton");b.disabled=true;
  document.getElementById("loginError").textContent="";
  try{
-  const {data,error}=await db.auth.signInWithPassword({
-   email:val("email"),password:document.getElementById("password").value
-  });
+  const {data,error}=await db.auth.signInWithPassword({email:val("email"),password:document.getElementById("password").value});
   if(error)throw error;
-  const a=await db.from("admin_users").select("user_id")
-   .eq("user_id",data.user.id).maybeSingle();
+  const a=await db.from("admin_users").select("user_id").eq("user_id",data.user.id).maybeSingle();
   if(a.error)throw a.error;
-  if(!a.data){
-   await db.auth.signOut();
-   throw new Error("Is account ko admin access nahi mila.");
-  }
+  if(!a.data){await db.auth.signOut();throw new Error("Is account ko admin access nahi mila.")}
   await start();
- }catch(e){
-  document.getElementById("loginError").textContent=e.message;
- }finally{b.disabled=false}
+ }catch(e){document.getElementById("loginError").textContent=e.message}
+ finally{b.disabled=false}
 }
-async function logout(){
- if(db)await db.auth.signOut();
- location.reload();
-}
+async function logout(){if(db)await db.auth.signOut();location.reload()}
 async function start(){
  document.getElementById("login").style.display="none";
  document.getElementById("layout").style.display="flex";
@@ -169,24 +159,19 @@ async function start(){
 async function check(){
  if(!db)return;
  try{
-  const s=await db.auth.getSession();
-  if(!s.data.session)return;
-  const a=await db.from("admin_users").select("user_id")
-   .eq("user_id",s.data.session.user.id).maybeSingle();
+  const s=await db.auth.getSession();if(!s.data.session)return;
+  const a=await db.from("admin_users").select("user_id").eq("user_id",s.data.session.user.id).maybeSingle();
   if(a.error)throw a.error;
-  if(a.data)await start();
-  else await db.auth.signOut();
+  if(a.data)await start();else await db.auth.signOut();
  }catch(e){document.getElementById("loginError").textContent=e.message}
 }
 async function loadCustomers(){
  const r=await db.from("profiles").select("*").limit(1000);
- if(r.error)throw r.error;
- customers=r.data||[];
+ if(r.error)throw r.error;customers=r.data||[];
 }
 async function loadProducts(){
  const r=await db.from("products").select("*").limit(1000);
- if(r.error)throw r.error;
- products=r.data||[];
+ if(r.error)throw r.error;products=r.data||[];
 }
 function customerName(id){
  const c=customers.find(x=>String(x.id)===String(id));
@@ -195,23 +180,53 @@ function customerName(id){
 function customerEmail(id){
  return customers.find(x=>String(x.id)===String(id))?.email||"Email not available";
 }
+function customerLink(id){
+ return `<span class="click-customer" onclick="openCustomerProfile('${esc(id)}')">${esc(customerName(id))}<br>${esc(customerEmail(id))}</span>`;
+}
 function renderSimple(data){
  if(!data?.length)return "No records found";
  const keys=Object.keys(data[0]);
- return "<div class='tablewrap'><table><tr>"+
- keys.map(k=>"<th>"+esc(k)+"</th>").join("")+"</tr>"+
- data.map(x=>"<tr>"+keys.map(k=>
- "<td>"+esc(typeof x[k]==="object"?JSON.stringify(x[k]):x[k])+"</td>"
- ).join("")+"</tr>").join("")+"</table></div>";
+ return "<div class='tablewrap'><table><tr>"+keys.map(k=>"<th>"+esc(k)+"</th>").join("")+"</tr>"+
+ data.map(x=>"<tr>"+keys.map(k=>"<td>"+esc(typeof x[k]==="object"?JSON.stringify(x[k]):x[k])+"</td>").join("")+"</tr>").join("")+"</table></div>";
 }
 
+/* CUSTOMER PROFILE */
+async function openCustomerProfile(id){
+ const modal=document.getElementById("customerProfileModal");
+ const box=document.getElementById("customerProfileContent");
+ modal.style.display="block";box.innerHTML="Loading customer details...";
+ try{
+  const [pr,or,wr,kr]=await Promise.all([
+   db.from("profiles").select("*").eq("id",id).maybeSingle(),
+   db.from("orders").select("*").eq("customer_id",id).order("created_at",{ascending:false}),
+   db.from("withdrawals").select("*").eq("customer_id",id).order("created_at",{ascending:false}),
+   db.from("kyc_submissions").select("*").eq("customer_id",id).order("created_at",{ascending:false})
+  ]);
+  if(pr.error)throw pr.error;
+  if(or.error)throw or.error;
+  if(wr.error)throw wr.error;
+  if(kr.error)throw kr.error;
+  const p=pr.data||{};
+  const fields=Object.entries(p).map(([key,value])=>`
+   <div class="profile-field"><b>${esc(key.replaceAll("_"," ").toUpperCase())}</b>
+   <p>${esc(value===null?"":typeof value==="object"?JSON.stringify(value):value)}</p></div>
+  `).join("");
+  box.innerHTML=`
+   <h2>Customer Profile</h2>
+   <div class="profile-grid">${fields||"No profile details found."}</div>
+   <h3>Customer Orders (${or.data.length})</h3>${renderSimple(or.data)}
+   <h3>Withdrawal Requests (${wr.data.length})</h3>${renderSimple(wr.data)}
+   <h3>KYC Records (${kr.data.length})</h3>${renderSimple(kr.data)}
+  `;
+ }catch(e){box.innerHTML="<p class='error'>"+esc(e.message)+"</p>"}
+}
+function closeCustomerProfile(){document.getElementById("customerProfileModal").style.display="none"}
+
 async function go(page,btn){
- current=page;
- const version=++pageVersion;
+ current=page;const version=++pageVersion;
  document.querySelectorAll("aside button").forEach(x=>x.classList.remove("active"));
  if(btn)btn.classList.add("active");
- document.querySelector("aside").classList.remove("open");
- note("");
+ document.querySelector("aside").classList.remove("open");note("");
  try{
   if(page==="dashboard")return await dashboard(version);
   if(page==="products")return await productPage(version);
@@ -228,11 +243,7 @@ async function go(page,btn){
 
 /* DASHBOARD */
 async function dashboard(version){
- const tables=[
-  ["profiles","Customers"],["products","Products"],["orders","Orders"],
-  ["withdrawals","Withdrawals"],["kyc_submissions","KYC Requests"],
-  ["support_messages","Messages"]
- ];
+ const tables=[["profiles","Customers"],["products","Products"],["orders","Orders"],["withdrawals","Withdrawals"],["kyc_submissions","KYC Requests"],["support_messages","Messages"]];
  let html="<h2>Dashboard</h2><div class='cards'>";
  for(const [table,name] of tables){
   const r=await db.from(table).select("*",{count:"exact",head:true});
@@ -247,653 +258,300 @@ async function uploadProductImage(file){
  if(!file)return null;
  if(!file.type.startsWith("image/"))throw new Error("Sirf image select karein.");
  if(file.size>5*1024*1024)throw new Error("Image maximum 5 MB honi chahiye.");
- const path=(crypto.randomUUID?crypto.randomUUID():Date.now())+
- "-"+file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
- const r=await db.storage.from(IMAGE_BUCKET).upload(path,file,{
-  cacheControl:"3600",upsert:false
- });
+ const path=(crypto.randomUUID?crypto.randomUUID():Date.now())+"-"+file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
+ const r=await db.storage.from(IMAGE_BUCKET).upload(path,file,{cacheControl:"3600",upsert:false});
  if(r.error)throw r.error;
  return db.storage.from(IMAGE_BUCKET).getPublicUrl(path).data.publicUrl;
 }
 function previewProductImage(){
- const file=document.getElementById("pimagefile")?.files?.[0];
- const preview=document.getElementById("imagePreview");
+ const file=document.getElementById("pimagefile")?.files?.[0],preview=document.getElementById("imagePreview");
  if(!preview)return;
  if(!file){preview.style.display="none";return}
- preview.src=URL.createObjectURL(file);
- preview.style.display="block";
+ preview.src=URL.createObjectURL(file);preview.style.display="block";
 }
 async function productPage(version=pageVersion){
- await loadProducts();
- if(!pageIs("products",version))return;
+ await loadProducts();if(!pageIs("products",version))return;
  putContent(`
- <h2>Products</h2>
- <div class="panel">
- <h3>Create Product</h3>
+ <h2>Products</h2><div class="panel"><h3>Create Product</h3>
  <label>Product Name</label><input id="pname">
  <label>Price</label><input id="pprice" type="number" step="0.01" min="0">
  <label>Category</label><input id="pcat">
  <label>Choose Product Picture</label>
  <input id="pimagefile" type="file" accept="image/*" onchange="previewProductImage()">
- <img id="imagePreview" class="preview">
- <p class="muted">Image maximum size 5 MB.</p>
+ <img id="imagePreview" class="preview"><p class="muted">Image maximum size 5 MB.</p>
  <button class="green" id="addProductButton" onclick="addProduct()">Upload Picture & Add Product</button>
- </div>
- <div class="panel"><h3>All Products</h3><div id="productList"></div></div>
- `,"products",version);
+ </div><div class="panel"><h3>All Products</h3><div id="productList"></div></div>`,"products",version);
  renderProducts();
 }
 function renderProducts(){
- const target=document.getElementById("productList");
- if(!target||!target.isConnected)return;
+ const target=document.getElementById("productList");if(!target||!target.isConnected)return;
  target.innerHTML="<div class='tablewrap'><table><tr><th>Picture</th><th>Name</th><th>Price</th><th>Category</th><th>Actions</th></tr>"+
- products.map(p=>`
- <tr>
- <td>${imageOf(p)?`<img class="product" src="${esc(imageOf(p))}">`:"-"}</td>
- <td>${esc(p.name)}</td><td>${esc(p.price)}</td><td>${esc(p.category)}</td>
- <td>
- <button onclick="editProduct('${esc(p.id)}')">Edit</button>
- <button class="red" onclick="deleteProduct('${esc(p.id)}')">Delete</button>
- </td></tr>`).join("")+"</table></div>";
+ products.map(p=>`<tr><td>${imageOf(p)?`<img class="product" src="${esc(imageOf(p))}">`:"-"}</td><td>${esc(p.name)}</td><td>${esc(p.price)}</td><td>${esc(p.category)}</td><td><button onclick="editProduct('${esc(p.id)}')">Edit</button><button class="red" onclick="deleteProduct('${esc(p.id)}')">Delete</button></td></tr>`).join("")+"</table></div>";
 }
 async function addProduct(){
  const name=val("pname"),price=Number(val("pprice"));
- if(!name||val("pprice")===""||!Number.isFinite(price)||price<0)
-  return note("Product name aur valid price likhein.",true);
- const b=document.getElementById("addProductButton");
- if(!b)return;
- b.disabled=true;
+ if(!name||val("pprice")===""||!Number.isFinite(price)||price<0)return note("Product name aur valid price likhein.",true);
+ const b=document.getElementById("addProductButton");if(!b)return;b.disabled=true;
  try{
   const image=await uploadProductImage(document.getElementById("pimagefile")?.files?.[0]);
-  const r=await db.from("products").insert({
-   name,price,category:val("pcat")||null,image:image,image_url:image
-  });
-  if(r.error)throw r.error;
-  note("Product successfully add ho gaya.");
-  if(current==="products")await productPage();
- }catch(e){note(e.message,true)}
- finally{
-  const btn=document.getElementById("addProductButton");
-  if(btn)btn.disabled=false;
- }
+  const r=await db.from("products").insert({name,price,category:val("pcat")||null,image:image,image_url:image});
+  if(r.error)throw r.error;note("Product successfully add ho gaya.");if(current==="products")await productPage();
+ }catch(e){note(e.message,true)}finally{const btn=document.getElementById("addProductButton");if(btn)btn.disabled=false}
 }
 async function editProduct(id){
- const p=products.find(x=>String(x.id)===String(id));
- if(!p)return;
- const name=prompt("Product name",p.name);
- if(name===null)return;
- const price=prompt("Price",p.price);
- if(price===null)return;
- const category=prompt("Category",p.category||"");
- if(category===null)return;
+ const p=products.find(x=>String(x.id)===String(id));if(!p)return;
+ const name=prompt("Product name",p.name);if(name===null)return;
+ const price=prompt("Price",p.price);if(price===null)return;
+ const category=prompt("Category",p.category||"");if(category===null)return;
  let image=imageOf(p);
  if(confirm("Picture change karni hai? OK = new picture, Cancel = old picture.")){
-  const picker=document.createElement("input");
-  picker.type="file";picker.accept="image/*";
-  const filePromise=new Promise(resolve=>{
-   picker.onchange=()=>resolve(picker.files?.[0]||null);
-   picker.oncancel=()=>resolve(null);
-  });
-  picker.click();
-  const file=await filePromise;
-  if(!file)return;
-  try{image=await uploadProductImage(file)}
-  catch(e){return note(e.message,true)}
+  const picker=document.createElement("input");picker.type="file";picker.accept="image/*";
+  const filePromise=new Promise(resolve=>{picker.onchange=()=>resolve(picker.files?.[0]||null);picker.oncancel=()=>resolve(null)});
+  picker.click();const file=await filePromise;if(!file)return;
+  try{image=await uploadProductImage(file)}catch(e){return note(e.message,true)}
  }
- const n=Number(price);
- if(!name.trim()||!Number.isFinite(n)||n<0)
-  return note("Name aur price check karein.",true);
- const r=await db.from("products").update({
-  name:name.trim(),price:n,category:category||null,
-  image:image||null,image_url:image||null
- }).eq("id",id);
- if(r.error)return note(r.error.message,true);
- note("Product updated.");
- if(current==="products")await productPage();
+ const n=Number(price);if(!name.trim()||!Number.isFinite(n)||n<0)return note("Name aur price check karein.",true);
+ const r=await db.from("products").update({name:name.trim(),price:n,category:category||null,image:image||null,image_url:image||null}).eq("id",id);
+ if(r.error)return note(r.error.message,true);note("Product updated.");if(current==="products")await productPage();
 }
 async function deleteProduct(id){
  if(!confirm("Delete this product?"))return;
  const r=await db.from("products").delete().eq("id",id);
- if(r.error)return note(r.error.message,true);
- note("Product deleted.");
- if(current==="products")await productPage();
+ if(r.error)return note(r.error.message,true);note("Product deleted.");if(current==="products")await productPage();
 }
 
 /* CUSTOMER PRODUCTS */
 async function customerProductsPage(version=pageVersion){
- await loadCustomers();
- if(!pageIs("customer_products",version))return;
+ await loadCustomers();if(!pageIs("customer_products",version))return;
  const r=await db.from("customer_products").select("*").limit(1000);
- if(r.error)throw r.error;
- if(!pageIs("customer_products",version))return;
- const groups={};
- (r.data||[]).forEach(p=>(groups[p.customer_id]??=[]).push(p));
+ if(r.error)throw r.error;if(!pageIs("customer_products",version))return;
+ const groups={};(r.data||[]).forEach(p=>(groups[p.customer_id]??=[]).push(p));
  window.customerProductGroups=groups;
- putContent(`
- <h2>Customer Products</h2>
- <div class="panel">
- <input id="cpSearch" placeholder="Search customer name or Gmail" oninput="filterCP()">
- <div id="customerProductList"></div>
- </div>`,"customer_products",version);
+ putContent(`<h2>Customer Products</h2><div class="panel"><input id="cpSearch" placeholder="Search customer name or Gmail" oninput="filterCP()"><div id="customerProductList"></div></div>`,"customer_products",version);
  renderCP(Object.keys(groups));
 }
 function renderCP(ids){
- const target=document.getElementById("customerProductList");
- if(!target||!target.isConnected)return;
- target.innerHTML=ids.map(id=>`
- <div class="customer" onclick="showCustomerProducts('${esc(id)}')">
- <b>${esc(customerName(id))}</b><br>
- <span class="muted">${esc(customerEmail(id))} | ${(window.customerProductGroups[id]||[]).length} products</span>
- </div>`).join("")||"No customer products found.";
+ const target=document.getElementById("customerProductList");if(!target||!target.isConnected)return;
+ target.innerHTML=ids.map(id=>`<div class="customer" onclick="showCustomerProducts('${esc(id)}')"><b>${esc(customerName(id))}</b><br><span class="muted">${esc(customerEmail(id))} | ${(window.customerProductGroups[id]||[]).length} products</span></div>`).join("")||"No customer products found.";
 }
 function filterCP(){
  const q=val("cpSearch").toLowerCase(),groups=window.customerProductGroups||{};
- const ids=Object.keys(groups).filter(id=>
- (String(customerName(id))+" "+customerEmail(id)).toLowerCase().includes(q));
- renderCP(ids);
+ renderCP(Object.keys(groups).filter(id=>(String(customerName(id))+" "+customerEmail(id)).toLowerCase().includes(q)));
 }
 function showCustomerProducts(id){
  const items=window.customerProductGroups?.[id]||[];
- const c=customers.find(x=>String(x.id)===String(id));
- putContent(`
- <button class="gray" onclick="customerProductsPage()">← Back</button>
- <div class="panel"><h2>${esc(customerName(id))}</h2>
- Gmail: ${esc(c?.email||"Email not available")}</div>
- <div class="panel"><h3>Customer Products</h3>${renderSimple(items)}</div>
- `,"customer_products",pageVersion);
+ putContent(`<button class="gray" onclick="customerProductsPage()">← Back</button><div class="panel"><h2>${esc(customerName(id))}</h2>Gmail: ${esc(customerEmail(id))}<p><button onclick="openCustomerProfile('${esc(id)}')">Open Customer Profile</button></p></div><div class="panel"><h3>Customer Products</h3>${renderSimple(items)}</div>`,"customer_products",pageVersion);
 }
 
 /* WALLET CALCULATION */
 function calculateWalletSummary(transactions,orders){
  let available=0,profit=0,applied=0;
-
  (transactions||[]).forEach(t=>{
-  const type=String(t.transaction_type||"").toLowerCase().trim();
-  const status=String(t.status||"").toLowerCase().trim();
-  const amount=Math.abs(Number(t.amount)||0);
-
+  const type=String(t.transaction_type||"").toLowerCase().trim(),status=String(t.status||"").toLowerCase().trim(),amount=Math.abs(Number(t.amount)||0);
   if(!["approved","completed","success","successful","paid"].includes(status))return;
-
-  if(type==="profit"){
-   profit+=amount;
-   available+=amount;
-  }else if(type==="purchase"||type==="applied"){
-   available-=amount;
-  }else if(type==="refund"){
-   available+=amount;
-  }else if(type==="withdrawal"||type.includes("minus")||
-           type.includes("debit")||type.includes("payment")){
-   available-=amount;
-  }else if(type.includes("add_balance")||type==="credit"||
-           type==="deposit"||type==="income"||type==="add balance"){
-   available+=amount;
-  }
+  if(type==="profit"){profit+=amount;available+=amount}
+  else if(type==="purchase"||type==="applied")available-=amount;
+  else if(type==="refund")available+=amount;
+  else if(type==="withdrawal"||type.includes("minus")||type.includes("debit")||type.includes("payment"))available-=amount;
+  else if(type.includes("add_balance")||type==="credit"||type==="deposit"||type==="income"||type==="add balance")available+=amount;
  });
-
  (orders||[]).forEach(o=>{
   const status=String(o.status||"").toLowerCase().trim();
-  const pickedUpStatuses=["processing","shipping","shipped","picked_up","picked up","in_progress"];
-  if(pickedUpStatuses.includes(status)){
-   const amount=Number(o.total_amount??o.product_price??0);
-   if(Number.isFinite(amount)&&amount>0)applied+=amount;
+  if(["processing","shipping","shipped","picked_up","picked up","in_progress"].includes(status)){
+   const amount=Number(o.total_amount??o.product_price??0);if(Number.isFinite(amount)&&amount>0)applied+=amount;
   }
  });
-
- return {
-  available:Math.max(0,available),
-  profit:Math.max(0,profit),
-  applied:Math.max(0,applied)
- };
+ return {available:Math.max(0,available),profit:Math.max(0,profit),applied:Math.max(0,applied)};
 }
-
-function calculateAvailableBalance(transactions){
- return calculateWalletSummary(transactions,[]).available;
-}
+function calculateAvailableBalance(transactions){return calculateWalletSummary(transactions,[]).available}
 
 /* ORDERS */
 async function ordersPage(version=pageVersion){
- await Promise.all([loadCustomers(),loadProducts()]);
- if(!pageIs("orders",version))return;
- profitEdited=false;
-
+ await Promise.all([loadCustomers(),loadProducts()]);if(!pageIs("orders",version))return;profitEdited=false;
  putContent(`
- <h2>Orders</h2>
- <div class="panel">
- <h3>Send Order to Customer</h3>
- <label>Customer</label>
- <select id="ocustomer"><option value="">Select customer</option>
- ${customers.map(c=>`<option value="${esc(c.id)}">${esc(c.full_name||c.email||c.id)} — ${esc(c.email||"")}</option>`).join("")}
- </select>
- <label>Product</label>
- <select id="oproduct" onchange="calcOrder(true)">
- <option value="">Select product</option>
- ${products.map(p=>`<option value="${esc(p.id)}">${esc(p.name)} — $${money(p.price)}</option>`).join("")}
- </select>
- <label>Quantity</label>
- <input id="oqty" type="number" min="1" value="1" oninput="calcOrder()">
+ <h2>Orders</h2><div class="panel"><h3>Send Order to Customer</h3>
+ <label>Customer</label><select id="ocustomer"><option value="">Select customer</option>
+ ${customers.map(c=>`<option value="${esc(c.id)}">${esc(c.full_name||c.email||c.id)} — ${esc(c.email||"")}</option>`).join("")}</select>
+ <label>Product</label><select id="oproduct" onchange="calcOrder(true)"><option value="">Select product</option>
+ ${products.map(p=>`<option value="${esc(p.id)}">${esc(p.name)} — $${money(p.price)}</option>`).join("")}</select>
+ <label>Quantity</label><input id="oqty" type="number" min="1" value="1" oninput="calcOrder()">
  <label>Admin Profit (20% automatic - manually editable)</label>
  <input id="oprofit" type="number" min="0" step="0.01" value="0" oninput="profitEdited=true;calcOrder()">
- <div class="order-calculation">
- <p>Product Price <strong id="productPrice">$0.00</strong></p>
- <p>Profit <strong id="profitDisplay">$0.00</strong></p>
- <p>Expected Return <strong id="expectedReturn">$0.00</strong></p>
- </div>
+ <div class="order-calculation"><p>Product Price <strong id="productPrice">$0.00</strong></p><p>Profit <strong id="profitDisplay">$0.00</strong></p><p>Expected Return <strong id="expectedReturn">$0.00</strong></p></div>
  <p class="muted">Profit automatically 20% calculate hoga. Admin manually change kar sakta hai.</p>
- <button class="green" id="sendOrderButton" onclick="sendOrder()">SEND ORDER</button>
- </div>
-
- <div class="cards">
-  <div class="stat">
-   Pending Orders Total
-   <strong id="pendingOrdersTotal">$0.00</strong>
-   <span class="muted">Sirf pending orders ki Product Price</span>
-  </div>
-  <div class="stat">
-   Total Customer Available Balance
-   <strong id="customerAvailableBalanceTotal">$0.00</strong>
-   <span class="muted">Customers ka current wallet balance</span>
-  </div>
- </div>
-
- <div class="panel"><h3>Orders List</h3>
- <button class="gray" onclick="loadOrders()">Refresh</button>
- <div id="orderList"></div></div>
- `,"orders",version);
-
- calcOrder(true);
- await loadOrders();
+ <button class="green" id="sendOrderButton" onclick="sendOrder()">SEND ORDER</button></div>
+ <div class="cards"><div class="stat">Pending Orders Total<strong id="pendingOrdersTotal">$0.00</strong><span class="muted">Sirf pending orders ki Product Price</span></div><div class="stat">Total Customer Available Balance<strong id="customerAvailableBalanceTotal">$0.00</strong><span class="muted">Customers ka current wallet balance</span></div></div>
+ <div class="panel"><h3>Orders List</h3><button class="gray" onclick="loadOrders()">Refresh</button><div id="orderList"></div></div>`,"orders",version);
+ calcOrder(true);await loadOrders();
 }
 function calcOrder(resetProfit=false){
- const p=products.find(x=>String(x.id)===val("oproduct"));
- const qty=Number(val("oqty"));
- const validQty=Number.isInteger(qty)&&qty>0?qty:0;
- const productPrice=Number(p?.price||0)*validQty;
- const profitInput=document.getElementById("oprofit");
- if(!profitInput)return;
- if(resetProfit||!profitEdited)profitInput.value=money(productPrice*.20);
+ const p=products.find(x=>String(x.id)===val("oproduct")),qty=Number(val("oqty")),validQty=Number.isInteger(qty)&&qty>0?qty:0,productPrice=Number(p?.price||0)*validQty,profitInput=document.getElementById("oprofit");
+ if(!profitInput)return;if(resetProfit||!profitEdited)profitInput.value=money(productPrice*.20);
  const profit=Number(profitInput.value||0);
- const priceEl=document.getElementById("productPrice");
- const profitEl=document.getElementById("profitDisplay");
- const returnEl=document.getElementById("expectedReturn");
- if(priceEl)priceEl.textContent="$"+money(productPrice);
- if(profitEl)profitEl.textContent="$"+money(profit);
- if(returnEl)returnEl.textContent="$"+money(productPrice+profit);
+ document.getElementById("productPrice").textContent="$"+money(productPrice);
+ document.getElementById("profitDisplay").textContent="$"+money(profit);
+ document.getElementById("expectedReturn").textContent="$"+money(productPrice+profit);
 }
 async function sendOrder(){
- const cid=val("ocustomer"),pid=val("oproduct"),qty=Number(val("oqty"));
- const p=products.find(x=>String(x.id)===pid);
- if(!cid||!p||!Number.isInteger(qty)||qty<1)
-  return note("Customer, product aur quantity select karein.",true);
- const unitPrice=Number(p.price);
- if(!Number.isFinite(unitPrice)||unitPrice<0)
-  return note("Product ki price valid nahi hai.",true);
- const total=unitPrice*qty,profit=Number(val("oprofit"));
- if(!Number.isFinite(profit)||profit<0)
-  return note("Profit amount check karein.",true);
- const b=document.getElementById("sendOrderButton");
- if(!b)return;
- b.disabled=true;
+ const cid=val("ocustomer"),pid=val("oproduct"),qty=Number(val("oqty")),p=products.find(x=>String(x.id)===pid);
+ if(!cid||!p||!Number.isInteger(qty)||qty<1)return note("Customer, product aur quantity select karein.",true);
+ const unitPrice=Number(p.price);if(!Number.isFinite(unitPrice)||unitPrice<0)return note("Product ki price valid nahi hai.",true);
+ const total=unitPrice*qty,profit=Number(val("oprofit"));if(!Number.isFinite(profit)||profit<0)return note("Profit amount check karein.",true);
+ const b=document.getElementById("sendOrderButton");if(!b)return;b.disabled=true;
  try{
-  const o=await db.from("orders").insert({
-   customer_id:cid,status:"pending",total_amount:total,admin_profit:profit
-  }).select("id").single();
+  const o=await db.from("orders").insert({customer_id:cid,status:"pending",total_amount:total,admin_profit:profit}).select("id").single();
   if(o.error)throw o.error;
-  const it=await db.from("order_items").insert({
-   order_id:o.data.id,product_id:p.id,product_name:p.name,
-   quantity:qty,unit_price:unitPrice
-  });
-  if(it.error){
-   await db.from("orders").delete().eq("id",o.data.id);
-   throw it.error;
-  }
-  note("Order sent. Product Price: $"+money(total)+
-   " | Profit: $"+money(profit)+" | Expected Return: $"+money(total+profit));
-  const productSelect=document.getElementById("oproduct");
-  const qtyInput=document.getElementById("oqty");
-  if(productSelect)productSelect.value="";
-  if(qtyInput)qtyInput.value="1";
-  profitEdited=false;
-  calcOrder(true);
+  const it=await db.from("order_items").insert({order_id:o.data.id,product_id:p.id,product_name:p.name,quantity:qty,unit_price:unitPrice});
+  if(it.error){await db.from("orders").delete().eq("id",o.data.id);throw it.error}
+  note("Order sent. Product Price: $"+money(total)+" | Profit: $"+money(profit)+" | Expected Return: $"+money(total+profit));
+  document.getElementById("oproduct").value="";document.getElementById("oqty").value="1";profitEdited=false;calcOrder(true);
   if(current==="orders")await loadOrders();
- }catch(e){note("Order save error: "+e.message,true)}
- finally{
-  const btn=document.getElementById("sendOrderButton");
-  if(btn)btn.disabled=false;
- }
+ }catch(e){note("Order save error: "+e.message,true)}finally{const btn=document.getElementById("sendOrderButton");if(btn)btn.disabled=false}
 }
-
-/* COMPLETED ORDER WALLET CREDIT */
 async function creditCompletedOrder(orderId){
- const orderResult=await db.from("orders").select("*").eq("id",orderId).single();
- if(orderResult.error)throw orderResult.error;
- const order=orderResult.data;
- if(String(order.status).toLowerCase()!=="completed")return;
- const customerId=order.customer_id;
- const productPrice=Number(order.total_amount??order.product_price??0);
- const profit=Number(order.admin_profit??0);
+ const orderResult=await db.from("orders").select("*").eq("id",orderId).single();if(orderResult.error)throw orderResult.error;
+ const order=orderResult.data;if(String(order.status).toLowerCase()!=="completed")return;
+ const customerId=order.customer_id,productPrice=Number(order.total_amount??order.product_price??0),profit=Number(order.admin_profit??0);
  if(!customerId)throw new Error("Order customer missing.");
- if(!Number.isFinite(productPrice)||productPrice<0||
-    !Number.isFinite(profit)||profit<0)
-  throw new Error("Order amount invalid.");
-
- const depositCheck=await db.from("wallet_transactions").select("id")
-  .eq("customer_id",customerId).eq("reference_id",orderId)
-  .eq("transaction_type","deposit").limit(1);
+ if(!Number.isFinite(productPrice)||productPrice<0||!Number.isFinite(profit)||profit<0)throw new Error("Order amount invalid.");
+ const depositCheck=await db.from("wallet_transactions").select("id").eq("customer_id",customerId).eq("reference_id",orderId).eq("transaction_type","deposit").limit(1);
  if(depositCheck.error)throw depositCheck.error;
  if(!depositCheck.data.length&&productPrice>0){
-  const deposit=await db.from("wallet_transactions").insert({
-   customer_id:customerId,amount:productPrice,transaction_type:"deposit",
-   status:"completed",description:"Completed order product price returned",
-   reference_id:orderId
-  });
+  const deposit=await db.from("wallet_transactions").insert({customer_id:customerId,amount:productPrice,transaction_type:"deposit",status:"completed",description:"Completed order product price returned",reference_id:orderId});
   if(deposit.error)throw deposit.error;
  }
- const profitCheck=await db.from("wallet_transactions").select("id")
-  .eq("customer_id",customerId).eq("reference_id",orderId)
-  .eq("transaction_type","profit").limit(1);
+ const profitCheck=await db.from("wallet_transactions").select("id").eq("customer_id",customerId).eq("reference_id",orderId).eq("transaction_type","profit").limit(1);
  if(profitCheck.error)throw profitCheck.error;
  if(!profitCheck.data.length&&profit>0){
-  const result=await db.from("wallet_transactions").insert({
-   customer_id:customerId,amount:profit,transaction_type:"profit",
-   status:"completed",description:"Completed order profit",reference_id:orderId
-  });
+  const result=await db.from("wallet_transactions").insert({customer_id:customerId,amount:profit,transaction_type:"profit",status:"completed",description:"Completed order profit",reference_id:orderId});
   if(result.error)throw result.error;
  }
 }
-
-/* LOAD ORDERS + CUSTOMER AVAILABLE BALANCES */
 async function loadOrders(){
- const version=pageVersion;
- if(current!=="orders")return;
- const target=document.getElementById("orderList");
- if(!target||!target.isConnected)return;
-
- const r=await db.from("orders").select("*")
-  .order("created_at",{ascending:false}).limit(300);
- if(r.error){
-  if(pageIs("orders",version))note(r.error.message,true);
-  return;
- }
+ const version=pageVersion;if(current!=="orders")return;
+ const target=document.getElementById("orderList");if(!target||!target.isConnected)return;
+ const r=await db.from("orders").select("*").order("created_at",{ascending:false}).limit(300);
+ if(r.error){if(pageIs("orders",version))note(r.error.message,true);return}
  const rows=r.data||[];
  for(const order of rows){
   if(!pageIs("orders",version))return;
   if(String(order.status).toLowerCase()==="completed"){
-   try{await creditCompletedOrder(order.id)}
-   catch(e){
-    console.error("Wallet credit error:",order.id,e.message);
-    if(pageIs("orders",version))note("Wallet credit error: "+e.message,true);
-   }
+   try{await creditCompletedOrder(order.id)}catch(e){console.error("Wallet credit error:",order.id,e.message);if(pageIs("orders",version))note("Wallet credit error: "+e.message,true)}
   }
  }
- if(!pageIs("orders",version))return;
- await loadCustomers();
- if(!pageIs("orders",version))return;
-
+ if(!pageIs("orders",version))return;await loadCustomers();if(!pageIs("orders",version))return;
  let items=[];
  if(rows.length){
   const ir=await db.from("order_items").select("*").in("order_id",rows.map(x=>x.id));
-  if(ir.error){
-   if(pageIs("orders",version))note("Order items load error: "+ir.error.message,true);
-   return;
-  }
+  if(ir.error){if(pageIs("orders",version))note("Order items load error: "+ir.error.message,true);return}
   items=ir.data||[];
  }
  if(!pageIs("orders",version))return;
-
- const walletResult=await db.from("wallet_transactions")
-  .select("customer_id,amount,transaction_type,status").limit(5000);
- if(!pageIs("orders",version))return;
- if(walletResult.error){
-  note("Wallet balance load error: "+walletResult.error.message,true);
-  return;
- }
-
+ const walletResult=await db.from("wallet_transactions").select("customer_id,amount,transaction_type,status").limit(5000);
+ if(!pageIs("orders",version))return;if(walletResult.error){note("Wallet balance load error: "+walletResult.error.message,true);return}
  const transactionsByCustomer={};
- (walletResult.data||[]).forEach(x=>{
-  const cid=String(x.customer_id);
-  if(!transactionsByCustomer[cid])transactionsByCustomer[cid]=[];
-  transactionsByCustomer[cid].push(x);
- });
-
- const balanceByCustomer={};
- let totalCustomerAvailableBalance=0;
- customers.forEach(c=>{
-  const cid=String(c.id);
-  const balance=calculateAvailableBalance(transactionsByCustomer[cid]||[]);
-  balanceByCustomer[cid]=balance;
-  totalCustomerAvailableBalance+=balance;
- });
- Object.keys(transactionsByCustomer).forEach(cid=>{
-  if(Object.prototype.hasOwnProperty.call(balanceByCustomer,cid))return;
-  const balance=calculateAvailableBalance(transactionsByCustomer[cid]);
-  balanceByCustomer[cid]=balance;
-  totalCustomerAvailableBalance+=balance;
- });
-
+ (walletResult.data||[]).forEach(x=>{const cid=String(x.customer_id);(transactionsByCustomer[cid]??=[]).push(x)});
+ const balanceByCustomer={};let totalCustomerAvailableBalance=0;
+ customers.forEach(c=>{const cid=String(c.id),balance=calculateAvailableBalance(transactionsByCustomer[cid]||[]);balanceByCustomer[cid]=balance;totalCustomerAvailableBalance+=balance});
+ Object.keys(transactionsByCustomer).forEach(cid=>{if(Object.prototype.hasOwnProperty.call(balanceByCustomer,cid))return;const balance=calculateAvailableBalance(transactionsByCustomer[cid]);balanceByCustomer[cid]=balance;totalCustomerAvailableBalance+=balance});
  let pendingTotal=0;
  rows.forEach(x=>{
   if(String(x.status||"").toLowerCase().trim()!=="pending")return;
   const orderItems=items.filter(i=>String(i.order_id)===String(x.id));
-  const itemTotal=orderItems.reduce(
-   (sum,i)=>sum+Number(i.unit_price||0)*Number(i.quantity||0),0
-  );
+  const itemTotal=orderItems.reduce((sum,i)=>sum+Number(i.unit_price||0)*Number(i.quantity||0),0);
   const productPrice=orderItems.length?itemTotal:Number(x.total_amount??x.product_price??0);
   if(Number.isFinite(productPrice))pendingTotal+=productPrice;
  });
-
- const pendingEl=document.getElementById("pendingOrdersTotal");
- const balanceEl=document.getElementById("customerAvailableBalanceTotal");
- if(pendingEl)pendingEl.textContent="$"+money(pendingTotal);
- if(balanceEl)balanceEl.textContent="$"+money(totalCustomerAvailableBalance);
+ document.getElementById("pendingOrdersTotal").textContent="$"+money(pendingTotal);
+ document.getElementById("customerAvailableBalanceTotal").textContent="$"+money(totalCustomerAvailableBalance);
  if(!pageIs("orders",version))return;
-
- const list=document.getElementById("orderList");
- if(!list||!list.isConnected)return;
- list.innerHTML=rows.length?
- "<div class='tablewrap'><table><tr>"+
- "<th>Customer</th><th>Customer Available Balance</th><th>Order ID</th>"+
- "<th>Product / Quantity</th><th>Product Price</th><th>Profit</th>"+
- "<th>Expected Return</th><th>Status</th><th>Update</th></tr>"+
+ const list=document.getElementById("orderList");if(!list||!list.isConnected)return;
+ const orderStatuses=[["pending","Pending"],["processing","Processing"],["shipping","Shipping"],["completed","Complete"],["cancelled","Cancel"]];
+ list.innerHTML=rows.length?"<div class='tablewrap'><table><tr><th>Customer</th><th>Customer Available Balance</th><th>Order ID</th><th>Product / Quantity</th><th>Product Price</th><th>Profit</th><th>Expected Return</th><th>Status</th><th>Update</th></tr>"+
  rows.map(x=>{
   const orderItems=items.filter(i=>String(i.order_id)===String(x.id));
-  const itemTotal=orderItems.reduce(
-   (sum,i)=>sum+Number(i.unit_price||0)*Number(i.quantity||0),0
-  );
-  const productPrice=orderItems.length?itemTotal:Number(x.total_amount??x.product_price??0);
-  const profit=Number(x.admin_profit||0);
-  const customerAvailableBalance=balanceByCustomer[String(x.customer_id)]||0;
-  const itemText=orderItems.length?orderItems.map(i=>`
-   <div><b>${esc(i.product_name||"Product")}</b><br>
-   Quantity: ${esc(i.quantity)}<br>Unit Price: $${money(i.unit_price)}</div>
-  `).join("<hr>"):"Product details unavailable";
-
-  const orderStatuses=[
-   ["pending","Pending"],
-   ["processing","Processing"],
-   ["shipping","Shipping"],
-   ["completed","Complete"],
-   ["cancelled","Cancel"]
-  ];
+  const itemTotal=orderItems.reduce((sum,i)=>sum+Number(i.unit_price||0)*Number(i.quantity||0),0);
+  const productPrice=orderItems.length?itemTotal:Number(x.total_amount??x.product_price??0),profit=Number(x.admin_profit||0),customerAvailableBalance=balanceByCustomer[String(x.customer_id)]||0;
+  const itemText=orderItems.length?orderItems.map(i=>`<div><b>${esc(i.product_name||"Product")}</b><br>Quantity: ${esc(i.quantity)}<br>Unit Price: $${money(i.unit_price)}</div>`).join("<hr>"):"Product details unavailable";
   const currentStatus=String(x.status||"").toLowerCase().trim();
-
-  return `<tr>
-   <td>${esc(customerName(x.customer_id))}<br>${esc(customerEmail(x.customer_id))}</td>
-   <td><b>$${money(customerAvailableBalance)}</b></td>
-   <td>${esc(x.id)}</td><td>${itemText}</td>
-   <td>$${money(productPrice)}</td><td>$${money(profit)}</td>
-   <td><b>$${money(productPrice+profit)}</b></td>
-   <td><b>${esc(x.status)}</b></td>
-   <td><select id="orderstatus_${esc(x.id)}">
-   ${orderStatuses.map(([value,label])=>
-    `<option value="${value}" ${currentStatus===value?"selected":""}>${label}</option>`
-   ).join("")}
-   ${!orderStatuses.some(([value])=>value===currentStatus)?
-    `<option value="${esc(currentStatus)}" selected>${esc(x.status)} (Old Status)</option>`:""}
-   </select>
-   <button onclick="updateOrder('${esc(x.id)}')">Save</button></td>
-  </tr>`;
- }).join("")+"</table></div>"
- :"No orders found.";
+  return `<tr><td>${customerLink(x.customer_id)}<p><button onclick="openCustomerProfile('${esc(x.customer_id)}')">View Full Details</button></p></td><td><b>$${money(customerAvailableBalance)}</b></td><td>${esc(x.id)}</td><td>${itemText}</td><td>$${money(productPrice)}</td><td>$${money(profit)}</td><td><b>$${money(productPrice+profit)}</b></td><td><b>${esc(x.status)}</b></td><td><select id="orderstatus_${esc(x.id)}">${orderStatuses.map(([value,label])=>`<option value="${value}" ${currentStatus===value?"selected":""}>${label}</option>`).join("")}${!orderStatuses.some(([value])=>value===currentStatus)?`<option value="${esc(currentStatus)}" selected>${esc(x.status)} (Old Status)</option>`:""}</select><button onclick="updateOrder('${esc(x.id)}')">Save</button></td></tr>`;
+ }).join("")+"</table></div>":"No orders found.";
 }
 async function updateOrder(id){
- const select=document.getElementById("orderstatus_"+id);
- if(!select)return note("Order status select nahi mila.",true);
- const status=select.value;
- if(!["pending","processing","shipping","completed","cancelled"].includes(status))
-  return note("Invalid order status.",true);
+ const select=document.getElementById("orderstatus_"+id);if(!select)return note("Order status select nahi mila.",true);
+ const status=select.value;if(!["pending","processing","shipping","completed","cancelled"].includes(status))return note("Invalid order status.",true);
  select.disabled=true;
  try{
-  const r=await db.from("orders").update({status}).eq("id",id).select("*").single();
-  if(r.error)throw r.error;
-  if(status==="completed"){
-   await creditCompletedOrder(id);
-   note("Order completed. Wallet credit check ho gaya.");
-  }else note("Order successfully "+status+" ho gaya.");
+  const r=await db.from("orders").update({status}).eq("id",id).select("*").single();if(r.error)throw r.error;
+  if(status==="completed"){await creditCompletedOrder(id);note("Order completed. Wallet credit check ho gaya.")}else note("Order successfully "+status+" ho gaya.");
   if(current==="orders")await loadOrders();
- }catch(e){note("Order save error: "+e.message,true)}
- finally{
-  const s=document.getElementById("orderstatus_"+id);
-  if(s)s.disabled=false;
- }
+ }catch(e){note("Order save error: "+e.message,true)}finally{const s=document.getElementById("orderstatus_"+id);if(s)s.disabled=false}
 }
 
 /* WALLET MANAGEMENT */
 async function walletPage(version=pageVersion){
- await loadCustomers();
- if(!pageIs("wallet_transactions",version))return;
- putContent(`
- <h2>Wallet Management</h2>
- <div class="panel">
- <label>Customer</label>
- <select id="wcustomer" onchange="walletHistory()">
- <option value="">Select customer</option>
- ${customers.map(c=>`<option value="${esc(c.id)}">${esc(c.full_name||c.email||c.id)} — ${esc(c.email||"")}</option>`).join("")}
- </select>
+ await loadCustomers();if(!pageIs("wallet_transactions",version))return;
+ putContent(`<h2>Wallet Management</h2><div class="panel">
+ <label>Customer</label><select id="wcustomer" onchange="walletHistory()"><option value="">Select customer</option>
+ ${customers.map(c=>`<option value="${esc(c.id)}">${esc(c.full_name||c.email||c.id)} — ${esc(c.email||"")}</option>`).join("")}</select>
  <label>Amount</label><input id="wamount" type="number" step="0.01" min="0.01">
- <label>Transaction</label>
- <select id="wtype">
- <option value="deposit">Add Balance</option>
- <option value="purchase">Minus Balance</option>
- <option value="profit">Add Profit</option>
- </select>
+ <label>Transaction</label><select id="wtype"><option value="deposit">Add Balance</option><option value="purchase">Minus Balance</option><option value="profit">Add Profit</option></select>
  <label>Description</label><input id="wdesc" placeholder="Transaction details">
- <button class="green" id="walletSaveButton" onclick="walletAction()">Save Wallet Transaction</button>
- </div>
+ <button class="green" id="walletSaveButton" onclick="walletAction()">Save Wallet Transaction</button></div>
  <div class="panel"><h3>Wallet Summary</h3><div id="walletSummary">Select customer.</div></div>
- <div class="panel"><h3>Wallet History</h3>
- <button class="gray" onclick="walletHistory()">Refresh</button>
- <div id="walletList"></div></div>
- `,"wallet_transactions",version);
+ <div class="panel"><h3>Wallet History</h3><button class="gray" onclick="walletHistory()">Refresh</button><div id="walletList"></div></div>`,"wallet_transactions",version);
 }
 async function walletAction(){
  const cid=val("wcustomer"),amount=Number(val("wamount")),type=val("wtype");
- if(!cid||!Number.isFinite(amount)||amount<=0)
-  return note("Customer aur valid amount select karein.",true);
- const b=document.getElementById("walletSaveButton");
- if(!b)return;
- b.disabled=true;
+ if(!cid||!Number.isFinite(amount)||amount<=0)return note("Customer aur valid amount select karein.",true);
+ const b=document.getElementById("walletSaveButton");if(!b)return;b.disabled=true;
  try{
-  const r=await db.from("wallet_transactions").insert({
-   customer_id:cid,amount,transaction_type:type,status:"completed",
-   description:val("wdesc")||type,reference_id:null
-  });
-  if(r.error)throw r.error;
-  note("Wallet transaction save ho gaya.");
-  const amountEl=document.getElementById("wamount");
-  const descEl=document.getElementById("wdesc");
-  if(amountEl)amountEl.value="";
-  if(descEl)descEl.value="";
-  await walletHistory();
- }catch(e){note(e.message,true)}
- finally{
-  const btn=document.getElementById("walletSaveButton");
-  if(btn)btn.disabled=false;
- }
+  const r=await db.from("wallet_transactions").insert({customer_id:cid,amount,transaction_type:type,status:"completed",description:val("wdesc")||type,reference_id:null});
+  if(r.error)throw r.error;note("Wallet transaction save ho gaya.");document.getElementById("wamount").value="";document.getElementById("wdesc").value="";await walletHistory();
+ }catch(e){note(e.message,true)}finally{const btn=document.getElementById("walletSaveButton");if(btn)btn.disabled=false}
 }
-
-/* WALLET HISTORY */
 async function walletHistory(){
- const version=pageVersion,cid=val("wcustomer");
- const summary=document.getElementById("walletSummary");
- const list=document.getElementById("walletList");
- if(!summary||!list)return;
- if(!cid){summary.innerHTML="Select customer.";list.innerHTML="";return}
-
+ const version=pageVersion,cid=val("wcustomer"),summary=document.getElementById("walletSummary"),list=document.getElementById("walletList");
+ if(!summary||!list)return;if(!cid){summary.innerHTML="Select customer.";list.innerHTML="";return}
  try{
   const [walletResult,ordersResult]=await Promise.all([
-   db.from("wallet_transactions").select("*")
-    .eq("customer_id",cid).order("created_at",{ascending:false}).limit(500),
-   db.from("orders").select("id,total_amount,product_price,status")
-    .eq("customer_id",cid)
+   db.from("wallet_transactions").select("*").eq("customer_id",cid).order("created_at",{ascending:false}).limit(500),
+   db.from("orders").select("id,total_amount,product_price,status").eq("customer_id",cid)
   ]);
-  if(!pageIs("wallet_transactions",version))return;
-  if(walletResult.error)throw walletResult.error;
-  if(ordersResult.error)throw ordersResult.error;
-
-  const data=walletResult.data||[];
-  const orders=ordersResult.data||[];
-  const wallet=calculateWalletSummary(data,orders);
-
-  if(!pageIs("wallet_transactions",version))return;
-  summary.innerHTML=`
-   <div class="cards">
-    <div class="stat">Available Balance<strong>$${money(wallet.available)}</strong></div>
-    <div class="stat">Total Profit<strong>$${money(wallet.profit)}</strong></div>
-    <div class="stat">Applied Balance<strong>$${money(wallet.applied)}</strong></div>
-   </div>`;
+  if(!pageIs("wallet_transactions",version))return;if(walletResult.error)throw walletResult.error;if(ordersResult.error)throw ordersResult.error;
+  const data=walletResult.data||[],wallet=calculateWalletSummary(data,ordersResult.data||[]);
+  summary.innerHTML=`<div class="cards"><div class="stat">Available Balance<strong>$${money(wallet.available)}</strong></div><div class="stat">Total Profit<strong>$${money(wallet.profit)}</strong></div><div class="stat">Applied Balance<strong>$${money(wallet.applied)}</strong></div></div>`;
   list.innerHTML=renderSimple(data);
- }catch(e){
-  if(pageIs("wallet_transactions",version))note("Wallet load error: "+e.message,true);
- }
+ }catch(e){if(pageIs("wallet_transactions",version))note("Wallet load error: "+e.message,true)}
 }
 
 /* WITHDRAWALS */
 async function withdrawalsPage(version=pageVersion){
- await loadCustomers();
- if(!pageIs("withdrawals",version))return;
- const r=await db.from("withdrawals").select("*")
-  .order("created_at",{ascending:false}).limit(300);
- if(r.error)throw r.error;
- if(!pageIs("withdrawals",version))return;
- putContent(`
- <h2>Withdrawals</h2>
- <button class="gray" onclick="withdrawalsPage()">Refresh Requests</button>
- <div id="withdrawList"></div>
- `,"withdrawals",version);
- const target=document.getElementById("withdrawList");
- if(!target)return;
+ await loadCustomers();if(!pageIs("withdrawals",version))return;
+ const r=await db.from("withdrawals").select("*").order("created_at",{ascending:false}).limit(300);
+ if(r.error)throw r.error;if(!pageIs("withdrawals",version))return;
+ putContent(`<h2>Withdrawals</h2><button class="gray" onclick="withdrawalsPage()">Refresh Requests</button><div id="withdrawList"></div>`,"withdrawals",version);
+ const target=document.getElementById("withdrawList");if(!target)return;
  target.innerHTML=(r.data||[]).map(x=>{
   const pending=String(x.status||"").toLowerCase().trim()==="pending";
   return `<div class="panel">
-   <b>${esc(customerName(x.customer_id))}</b>
-   <p>Gmail: ${esc(customerEmail(x.customer_id))}</p>
+   <h3>${customerLink(x.customer_id)}</h3>
+   <button onclick="openCustomerProfile('${esc(x.customer_id)}')">Open Customer Full Details</button>
    <p>Amount: $${money(x.amount)} | Method: ${esc(x.method)}</p>
-   <p>Account Details:</p>
-   <pre>${esc(typeof x.account_details==="object"?JSON.stringify(x.account_details,null,2):x.account_details)}</pre>
+   <p>Account Details:</p><pre>${esc(typeof x.account_details==="object"?JSON.stringify(x.account_details,null,2):x.account_details)}</pre>
    <p>Status: <b>${esc(x.status)}</b></p>
-   ${pending?`
-    <button class="green" onclick="withdrawStatus('${esc(x.id)}','completed')">Paid / Approve</button>
-    <button class="red" onclick="withdrawStatus('${esc(x.id)}','rejected')">Reject</button>
-   `:`<p class="muted">Decision already made. No further action allowed.</p>`}
+   ${pending?`<button class="green" onclick="withdrawStatus('${esc(x.id)}','completed')">Paid / Approve</button><button class="red" onclick="withdrawStatus('${esc(x.id)}','rejected')">Reject</button>`:`<p class="muted">Decision already made. No further action allowed.</p>`}
   </div>`;
  }).join("")||"No withdrawal requests.";
 }
 async function withdrawStatus(id,status){
- if(!["completed","rejected"].includes(status))
-  return note("Invalid withdrawal status.",true);
- const adminNote=prompt("Admin note (optional)","");
- if(adminNote===null)return;
- const action=status==="completed"?"APPROVE":"REJECT";
- if(!confirm("Are you sure you want to "+action+" this withdrawal?"))return;
+ if(!["completed","rejected"].includes(status))return note("Invalid withdrawal status.",true);
+ const adminNote=prompt("Admin note (optional)","");if(adminNote===null)return;
+ if(!confirm("Are you sure you want to "+(status==="completed"?"APPROVE":"REJECT")+" this withdrawal?"))return;
  try{
-  const r=await db.from("withdrawals").update({status:status,admin_note:adminNote})
-   .eq("id",id).ilike("status","pending").select("id").maybeSingle();
+  const r=await db.from("withdrawals").update({status:status,admin_note:adminNote}).eq("id",id).ilike("status","pending").select("id").maybeSingle();
   if(r.error)throw r.error;
-  if(!r.data){
-   note("This withdrawal has already been processed. No changes made.",true);
-   if(current==="withdrawals")await withdrawalsPage();
-   return;
-  }
+  if(!r.data){note("This withdrawal has already been processed. No changes made.",true);if(current==="withdrawals")await withdrawalsPage();return}
   note(status==="completed"?"Withdrawal approved and marked Completed.":"Withdrawal rejected. Refund trigger has been activated.");
   if(current==="withdrawals")await withdrawalsPage();
  }catch(e){note("Withdrawal error: "+e.message,true)}
@@ -901,269 +559,126 @@ async function withdrawStatus(id,status){
 
 /* KYC */
 async function kycPage(version=pageVersion){
- await loadCustomers();
- if(!pageIs("kyc_submissions",version))return;
- const r=await db.from("kyc_submissions").select("*")
-  .order("created_at",{ascending:false}).limit(300);
- if(r.error)throw r.error;
- if(!pageIs("kyc_submissions",version))return;
- putContent(`
- <h2>KYC Requests</h2>
- <button class="gray" onclick="kycPage()">Refresh</button>
- <div id="kycList"></div>
- `,"kyc_submissions",version);
- const target=document.getElementById("kycList");
- if(!target)return;
+ await loadCustomers();if(!pageIs("kyc_submissions",version))return;
+ const r=await db.from("kyc_submissions").select("*").order("created_at",{ascending:false}).limit(300);
+ if(r.error)throw r.error;if(!pageIs("kyc_submissions",version))return;
+ putContent(`<h2>KYC Requests</h2><button class="gray" onclick="kycPage()">Refresh</button><div id="kycList"></div>`,"kyc_submissions",version);
+ const target=document.getElementById("kycList");if(!target)return;
  target.innerHTML=(r.data||[]).map(x=>{
   const pending=String(x.status||"").toLowerCase().trim()==="pending";
-  return `<div class="panel">
-   <b>${esc(customerName(x.customer_id))}</b>
-   <p>Gmail: ${esc(customerEmail(x.customer_id))}</p>
-   <p>Document: ${esc(x.document_type)} | Status: <b>${esc(x.status)}</b></p>
-   <p><a href="${esc(x.document_url)}" target="_blank" rel="noopener">Open KYC Document</a></p>
-   ${pending?`
-    <button class="green" onclick="kycStatus('${esc(x.id)}','approved')">Approve</button>
-    <button class="red" onclick="kycStatus('${esc(x.id)}','rejected')">Reject</button>
-   `:`<p class="muted">Decision already made. No further action allowed.</p>`}
-  </div>`;
+  return `<div class="panel"><b>${customerLink(x.customer_id)}</b><p><button onclick="openCustomerProfile('${esc(x.customer_id)}')">View Customer Details</button></p>
+  <p>Document: ${esc(x.document_type)} | Status: <b>${esc(x.status)}</b></p>
+  <p><a href="${esc(x.document_url)}" target="_blank" rel="noopener">Open KYC Document</a></p>
+  ${pending?`<button class="green" onclick="kycStatus('${esc(x.id)}','approved')">Approve</button><button class="red" onclick="kycStatus('${esc(x.id)}','rejected')">Reject</button>`:`<p class="muted">Decision already made. No further action allowed.</p>`}</div>`;
  }).join("")||"No KYC requests.";
 }
 async function kycStatus(id,status){
- if(!["approved","rejected"].includes(status))
-  return note("Invalid KYC status.",true);
- const action=status==="approved"?"APPROVE":"REJECT";
- if(!confirm("Are you sure you want to "+action+" this KYC request?"))return;
+ if(!["approved","rejected"].includes(status))return note("Invalid KYC status.",true);
+ if(!confirm("Are you sure you want to "+(status==="approved"?"APPROVE":"REJECT")+" this KYC request?"))return;
  try{
-  const r=await db.from("kyc_submissions").update({status:status})
-   .eq("id",id).ilike("status","pending").select("id").maybeSingle();
+  const r=await db.from("kyc_submissions").update({status:status}).eq("id",id).ilike("status","pending").select("id").maybeSingle();
   if(r.error)throw r.error;
-  if(!r.data){
-   note("This KYC request has already been processed. No changes made.",true);
-   if(current==="kyc_submissions")await kycPage();
-   return;
-  }
-  note(status==="approved"?"KYC approved successfully.":"KYC rejected successfully.");
-  if(current==="kyc_submissions")await kycPage();
+  if(!r.data){note("This KYC request has already been processed. No changes made.",true);if(current==="kyc_submissions")await kycPage();return}
+  note(status==="approved"?"KYC approved successfully.":"KYC rejected successfully.");if(current==="kyc_submissions")await kycPage();
  }catch(e){note("KYC update error: "+e.message,true)}
 }
 
 /* CUSTOMER SERVICE CHAT */
 async function supportPage(version=pageVersion){
- window.activeSupportCustomerId=null;
- await loadCustomers();
- if(!pageIs("support_messages",version))return;
-
- const r=await db.from("support_messages").select("*")
-  .order("created_at",{ascending:false}).limit(1000);
- if(r.error)throw r.error;
- if(!pageIs("support_messages",version))return;
-
- const grouped={};
- (r.data||[]).forEach(message=>{
-  const id=String(message.customer_id);
-  if(!grouped[id]){
-   grouped[id]={
-    customer_id:message.customer_id,
-    latest:message,
-    count:0,
-    unanswered:0
-   };
-  }
-  grouped[id].count++;
-  if(!message.reply)grouped[id].unanswered++;
- });
-
- const list=Object.values(grouped).sort((a,b)=>
-  new Date(b.latest.created_at||0)-new Date(a.latest.created_at||0)
- );
-
- putContent(`
-  <h2>Customer Service Chat</h2>
-  <p class="muted">Customer ki Gmail par click karke uski poori chat kholein.</p>
-  <button class="gray" onclick="supportPage()">Refresh Chats</button>
-  <input id="supportSearch" placeholder="Search customer name or Gmail" oninput="filterSupportCustomers()">
-  <div id="supportList"></div>
- `,"support_messages",version);
-
- window.supportCustomerList=list;
- renderSupportCustomers(list);
+ await loadCustomers();if(!pageIs("support_messages",version))return;
+ const r=await db.from("support_messages").select("*").order("created_at",{ascending:true}).limit(1000);
+ if(r.error)throw r.error;if(!pageIs("support_messages",version))return;
+ supportMessages=r.data||[];activeSupportCustomerId=null;
+ putContent(`<h2>Customer Service Chat</h2>
+ <p class="muted">Customer ka Gmail select karke uski chat open karein. Reply website par hi show hoga; Gmail par email nahi bheji jayegi.</p>
+ <button class="gray" onclick="supportPage()">Refresh Messages</button>
+ <input id="supportSearch" placeholder="Search customer name or Gmail" oninput="filterSupportCustomers()">
+ <div id="supportCustomerList"></div>`,"support_messages",version);
+ renderSupportCustomers();
 }
-
-function renderSupportCustomers(list){
- const target=document.getElementById("supportList");
- if(!target||!target.isConnected)return;
-
- target.innerHTML=list.map(c=>{
-  const id=String(c.customer_id);
-  const email=customerEmail(id);
-  return `
-   <div class="chat-customer">
-    <h3>${esc(customerName(id))}</h3>
-    <p><b>Gmail:</b></p>
-    <button class="chat-email"
-      onclick="openSupportChat('${esc(id)}')">${esc(email)}</button>
-    <p>Messages: ${c.count}</p>
-    <p>Unanswered messages: <b>${c.unanswered}</b></p>
-    <p class="muted">Latest message: ${esc(c.latest.message||"")}</p>
-    <button class="green" onclick="openSupportChat('${esc(id)}')">Open Chat</button>
-   </div>
-  `;
- }).join("")||"No customer messages yet.";
+function renderSupportCustomers(){
+ const box=document.getElementById("supportCustomerList");if(!box)return;
+ const groups={};
+ supportMessages.forEach(m=>{(groups[String(m.customer_id)]??=[]).push(m)});
+ window.supportGroups=groups;
+ const q=(document.getElementById("supportSearch")?.value||"").toLowerCase();
+ const ids=Object.keys(groups).filter(id=>(String(customerName(id))+" "+customerEmail(id)).toLowerCase().includes(q));
+ box.innerHTML=ids.map(id=>{
+  const msgs=groups[id],last=msgs[msgs.length-1];
+  return `<div class="customer" onclick="openSupportChat('${esc(id)}')">
+   <b>${esc(customerName(id))}</b><br>
+   <span class="click-customer">${esc(customerEmail(id))}</span>
+   <p class="muted">${msgs.length} messages · Latest: ${esc(last.message||"")}</p>
+   <b>${last.reply?"Replied":"Waiting for reply"}</b>
+  </div>`;
+ }).join("")||"No customer messages.";
 }
-
-function filterSupportCustomers(){
- const q=val("supportSearch").toLowerCase();
- const list=window.supportCustomerList||[];
- const filtered=list.filter(c=>{
-  const id=String(c.customer_id);
-  return (
-   String(customerName(id)).toLowerCase().includes(q)||
-   customerEmail(id).toLowerCase().includes(q)
-  );
- });
- renderSupportCustomers(filtered);
+function filterSupportCustomers(){renderSupportCustomers()}
+function openSupportChat(customerId){
+ activeSupportCustomerId=String(customerId);
+ const messages=(window.supportGroups?.[activeSupportCustomerId]||[]);
+ putContent(`<button class="gray" onclick="supportPage()">← Back to Customers</button>
+ <div class="panel"><h2>${esc(customerName(customerId))}</h2>
+ <p>Gmail: ${esc(customerEmail(customerId))}</p>
+ <button onclick="openCustomerProfile('${esc(customerId)}')">Open Customer Full Profile</button></div>
+ <div class="panel"><h3>Chat Messages</h3><div id="supportChatMessages"></div></div>`,"support_messages",pageVersion);
+ const box=document.getElementById("supportChatMessages");if(!box)return;
+ box.innerHTML=messages.map(m=>`
+  <div class="chat-bubble chat-customer">
+   <div class="chat-meta">Customer · ${esc(m.created_at||"")}</div>
+   <b>${esc(customerName(customerId))}</b><p>${esc(m.message)}</p>
+  </div>
+  ${m.reply?`<div class="chat-bubble chat-admin"><div class="chat-meta">Admin Reply</div><p>${esc(m.reply)}</p></div>`:""}
+  <div class="panel">
+   <label>Reply to this message</label>
+   <textarea id="reply_${esc(m.id)}" placeholder="Write your reply...">${esc(m.reply||"")}</textarea>
+   <button class="green" onclick="sendReply('${esc(m.id)}')">Send Reply</button>
+  </div>
+ `).join("")||"No messages.";
 }
-
-async function openSupportChat(customerId){
- window.activeSupportCustomerId=String(customerId);
- const version=pageVersion;
-
- try{
-  const r=await db.from("support_messages").select("*")
-   .eq("customer_id",customerId)
-   .order("created_at",{ascending:true});
-
-  if(r.error)throw r.error;
-  if(!pageIs("support_messages",version))return;
-
-  putContent(`
-   <h2>Customer Chat</h2>
-   <div class="panel">
-    <h3>${esc(customerName(customerId))}</h3>
-    <p><b>Gmail:</b> ${esc(customerEmail(customerId))}</p>
-    <button class="gray" onclick="supportPage()">← Back to Customers</button>
-    <button class="gray" onclick="openSupportChat('${esc(customerId)}')">Refresh Chat</button>
-   </div>
-   <div id="supportChatMessages"></div>
-  `,"support_messages",version);
-
-  const target=document.getElementById("supportChatMessages");
-  if(!target)return;
-
-  target.innerHTML=(r.data||[]).map(m=>{
-   const date=m.created_at?new Date(m.created_at).toLocaleString():"";
-   return `
-    <div class="panel">
-     <div class="chat-bubble chat-from-customer">
-      <b>Customer</b>
-      <p>${esc(m.message||"")}</p>
-      <div class="chat-time">${esc(date)}</div>
-     </div>
-
-     ${m.reply?`
-      <div class="chat-bubble chat-from-admin">
-       <b>Admin Reply</b>
-       <p>${esc(m.reply)}</p>
-      </div>
-     `:`
-      <p class="muted">Waiting for Admin Reply</p>
-     `}
-
-     <label>Reply to this message</label>
-     <textarea id="reply_${esc(m.id)}" rows="3"
-      placeholder="Write your reply...">${esc(m.reply||"")}</textarea>
-     <button class="green" id="replyButton_${esc(m.id)}"
-      onclick="sendReply('${esc(m.id)}')">Send Reply</button>
-    </div>
-   `;
-  }).join("")||"<div class='panel'>No messages from this customer yet.</div>";
-
- }catch(e){
-  note("Chat load error: "+e.message,true);
- }
-}
-
 async function sendReply(id){
- const el=document.getElementById("reply_"+id);
- if(!el||!el.value.trim())return note("Please write a reply.",true);
-
- const customerId=window.activeSupportCustomerId;
- const button=document.getElementById("replyButton_"+id);
- if(button)button.disabled=true;
-
- try{
-  const r=await db.from("support_messages").update({
-   reply:el.value.trim(),
-   status:"answered"
-  }).eq("id",id);
-
-  if(r.error)throw r.error;
-
-  note("Reply sent successfully. Customer can see it in Support.");
-
-  if(customerId){
-   await openSupportChat(customerId);
-  }
- }catch(e){
-  note("Reply error: "+e.message,true);
- }finally{
-  const b=document.getElementById("replyButton_"+id);
-  if(b)b.disabled=false;
- }
+ const el=document.getElementById("reply_"+id);if(!el||!el.value.trim())return note("Reply likhein.",true);
+ const reply=el.value.trim();
+ const r=await db.from("support_messages").update({reply,status:"answered"}).eq("id",id);
+ if(r.error)return note(r.error.message,true);
+ note("Reply customer ke message mein save ho gaya.");
+ const cid=activeSupportCustomerId;
+ const refreshed=await db.from("support_messages").select("*").order("created_at",{ascending:true}).limit(1000);
+ if(refreshed.error)return note(refreshed.error.message,true);
+ supportMessages=refreshed.data||[];
+ const groups={};supportMessages.forEach(m=>(groups[String(m.customer_id)]??=[]).push(m));
+ window.supportGroups=groups;
+ if(current==="support_messages"&&cid)openSupportChat(cid);
 }
 
 /* NOTIFICATIONS */
 async function notificationsPage(version=pageVersion){
- const r=await db.from("notifications").select("*")
-  .order("created_at",{ascending:false}).limit(300);
- if(r.error)throw r.error;
- if(!pageIs("notifications",version))return;
- putContent(`
- <h2>Notifications</h2>
- <p class="muted">Website notifications yahan show hongi.</p>
- <button class="gray" onclick="notificationsPage()">Refresh</button>
- <div class="panel">${renderSimple(r.data||[])}</div>
- `,"notifications",version);
+ const r=await db.from("notifications").select("*").order("created_at",{ascending:false}).limit(300);
+ if(r.error)throw r.error;if(!pageIs("notifications",version))return;
+ putContent(`<h2>Notifications</h2><p class="muted">Website notifications yahan show hongi.</p><button class="gray" onclick="notificationsPage()">Refresh</button><div class="panel">${renderSimple(r.data||[])}</div>`,"notifications",version);
 }
 
 /* CREDIT SCORE */
 async function creditPage(version=pageVersion){
- await loadCustomers();
- if(!pageIs("credit_score_history",version))return;
- const r=await db.from("credit_score_history").select("*")
-  .order("created_at",{ascending:false}).limit(300);
- if(r.error)throw r.error;
- if(!pageIs("credit_score_history",version))return;
- putContent(`
- <h2>Credit Score History</h2>
- <div class="panel">
- <h3>Change Customer Credit Score</h3>
- <label>Customer</label>
- <select id="ccustomer"><option value="">Select customer</option>
- ${customers.map(c=>`<option value="${esc(c.id)}">${esc(c.full_name||c.email||c.id)} — Current score: ${esc(c.credit_score??0)}</option>`).join("")}
- </select>
- <label>New Credit Score</label>
- <input id="newScore" type="number" min="0" max="1000">
- <label>Reason</label>
- <input id="scoreReason" placeholder="Reason for score change">
- <button class="green" onclick="saveCreditScore()">Save Credit Score</button>
- </div>
- <div class="panel"><h3>Credit Score History</h3>${renderSimple(r.data||[])}</div>
- `,"credit_score_history",version);
+ await loadCustomers();if(!pageIs("credit_score_history",version))return;
+ const r=await db.from("credit_score_history").select("*").order("created_at",{ascending:false}).limit(300);
+ if(r.error)throw r.error;if(!pageIs("credit_score_history",version))return;
+ putContent(`<h2>Credit Score History</h2><div class="panel"><h3>Change Customer Credit Score</h3>
+ <label>Customer</label><select id="ccustomer"><option value="">Select customer</option>
+ ${customers.map(c=>`<option value="${esc(c.id)}">${esc(c.full_name||c.email||c.id)} — Current score: ${esc(c.credit_score??0)}</option>`).join("")}</select>
+ <label>New Credit Score</label><input id="newScore" type="number" min="0" max="1000">
+ <label>Reason</label><input id="scoreReason" placeholder="Reason for score change">
+ <button class="green" onclick="saveCreditScore()">Save Credit Score</button></div>
+ <div class="panel"><h3>Credit Score History</h3>${renderSimple(r.data||[])}</div>`,"credit_score_history",version);
 }
 async function saveCreditScore(){
  const cid=val("ccustomer"),score=Number(val("newScore")),reason=val("scoreReason");
- if(!cid||val("newScore")===""||!Number.isInteger(score)||score<0||score>1000)
-  return note("Customer aur score 0 se 1000 ke darmiyan likhein.",true);
- const c=customers.find(x=>String(x.id)===String(cid));
- if(!c)return note("Customer nahi mila.",true);
+ if(!cid||val("newScore")===""||!Number.isInteger(score)||score<0||score>1000)return note("Customer aur score 0 se 1000 ke darmiyan likhein.",true);
+ const c=customers.find(x=>String(x.id)===String(cid));if(!c)return note("Customer nahi mila.",true);
  const oldScore=Number(c.credit_score||0);
  const update=await db.from("profiles").update({credit_score:score}).eq("id",cid);
  if(update.error)return note(update.error.message,true);
- const history=await db.from("credit_score_history").insert({
-  customer_id:cid,old_score:oldScore,new_score:score,
-  change_amount:score-oldScore,reason:reason||"Admin adjustment"
- });
+ const history=await db.from("credit_score_history").insert({customer_id:cid,old_score:oldScore,new_score:score,change_amount:score-oldScore,reason:reason||"Admin adjustment"});
  if(history.error)note("Score updated, lekin history save nahi hui: "+history.error.message,true);
  else note("Credit score successfully updated.");
  if(current==="credit_score_history")await creditPage();
