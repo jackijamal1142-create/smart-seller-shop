@@ -367,30 +367,59 @@ function renderRecentOrders(){
  });
 }
 
-/* Read-only wallet display. No customer-side add/minus actions. */
+/* Wallet: profit is read separately so a completed profit entry is counted exactly. */
 window.loadWallet=async function(){
  $("walletMessage").textContent="Loading wallet...";
  try{
-  const {data,error}=await db.from("wallet_transactions").select("amount,transaction_type,status,description,created_at").eq("customer_id",currentUser.id);
+  const {data,error}=await db
+   .from("wallet_transactions")
+   .select("amount,transaction_type,status")
+   .eq("customer_id",currentUser.id);
+
   if(error)throw error;
+
   let available=0,profit=0,applied=0;
+
   (data||[]).forEach(t=>{
-   const type=String(t.transaction_type||"").toLowerCase().replace(/[\s-]+/g,"_");
-   const status=String(t.status||"").toLowerCase();
+   const type=String(t.transaction_type||"").toLowerCase().trim();
+   const status=String(t.status||"").toLowerCase().trim();
    const amount=Number(t.amount||0);
+
    if(!["approved","completed","success","successful","paid"].includes(status))return;
-   if(type.includes("profit")){profit+=amount;return}
-   if(type.includes("applied")){applied+=amount;return}
-   if(type.includes("minus")||type.includes("withdraw")||type.includes("debit")||type.includes("payment")||type.includes("purchase")){available-=amount;return}
-   if(type.includes("add_balance")||type==="credit"||type.includes("deposit")||type.includes("income")){available+=amount}
+
+   if(type==="profit"){
+    profit+=amount;
+   }else if(type.includes("applied")){
+    applied+=amount;
+   }else if(
+    type.includes("minus")||
+    type.includes("withdraw")||
+    type.includes("debit")||
+    type.includes("payment")||
+    type.includes("purchase")
+   ){
+    available-=amount;
+   }else if(
+    type.includes("add_balance")||
+    type==="credit"||
+    type.includes("deposit")||
+    type.includes("income")
+   ){
+    available+=amount;
+   }
   });
+
   $("walletBalance").textContent=money(available);
   $("walletProfit").textContent=money(profit);
   $("walletApplied").textContent=money(applied);
   $("homeBalance").textContent=money(available);
   $("homeProfit").textContent=money(profit);
+
   $("walletMessage").textContent="Wallet records loaded.";
- }catch(err){$("walletMessage").textContent="Wallet error: "+err.message}
+ }catch(err){
+  $("walletMessage").textContent="Wallet error: "+err.message;
+  console.error("Wallet error:",err);
+ }
 };
 
 window.resetWithdrawScreen=function(){["withdrawOptions","usdtForm","bankForm"].forEach(id=>$(id).classList.add("hidden"));$("withdrawOpenButton").classList.remove("hidden");$("withdrawMessage").textContent=""};
