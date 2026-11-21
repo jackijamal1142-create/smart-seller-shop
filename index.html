@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -28,7 +29,7 @@ h2{font-size:22px;margin:8px 0 5px}h3{font-size:17px;margin:5px 0 12px}p{line-he
 .green{color:#059669}.purple{color:#7950dc}.blue{color:#2563eb}
 button,input,select,textarea{font-family:Arial,sans-serif;font-size:15px}
 button{border:0;border-radius:10px;padding:12px 14px;background:linear-gradient(110deg,#3563e9,#4b75f0);color:white;font-weight:bold;cursor:pointer}
-button:disabled{opacity:.65;cursor:not-allowed}
+button:disabled{opacity:.45;cursor:not-allowed}
 input,select,textarea{width:100%;padding:13px;border:1px solid var(--border);border-radius:10px;background:#fff;color:#17243a;margin:7px 0;outline:none}
 input:focus,select:focus,textarea:focus{border-color:#7194f4;box-shadow:0 0 0 3px #3563e915}
 textarea{min-height:95px;resize:vertical}
@@ -57,6 +58,7 @@ button.link{background:none;color:var(--blue);padding:5px;width:auto}
 hr{border:0;border-top:1px solid var(--border);margin:18px 0}
 .auth-wrap{max-width:430px;margin:35px auto}.auth-wrap .card{padding:22px}
 #profilePage{padding-bottom:20px}
+.kyc-lock-note{background:#fff7df;border:1px solid #f3d58a;color:#8a5b00;padding:13px;border-radius:12px;margin:10px 0 15px;font-size:13px;line-height:1.5}
 @media(min-width:600px){main{padding:22px}.product-image{height:230px}}
 </style>
 </head>
@@ -109,6 +111,13 @@ hr{border:0;border-top:1px solid var(--border);margin:18px 0}
   <div class="avatar">👤</div>
   <div><small>Welcome back!</small><strong id="welcome">Customer</strong></div>
  </div>
+
+ <div id="kycLockBanner" class="kyc-lock-note hidden">
+  <strong>🔒 KYC Verification Required</strong><br>
+  Aapka account abhi verify nahi hua. Aap tamam sections dekh sakte hain, lekin account ke actions KYC approve hone tak band rahenge. KYC submit karne ke liye Profile mein jayein.
+  <button class="full" onclick="openPage('profile')">Complete KYC Verification</button>
+ </div>
+
  <section id="homePage" class="page">
   <div class="page-title"><h2>Dashboard</h2><p class="muted">Here's your account overview.</p></div>
   <div class="stats">
@@ -205,10 +214,29 @@ const SUPABASE_KEY="sb_publishable_QrBZWYfua111aN24MjlXHw_c-Cf5yB1";
 const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=id=>document.getElementById(id);
 let currentUser=null,cachedOrders=[],cachedProducts=[];
+let isKycApproved=false;
 
 function msg(t){$("message").textContent=t}
 function money(v){return "$"+Number(v||0).toFixed(2)}
 function safeText(v){return v===null||v===undefined||v===""?"-":String(v)}
+
+function requireKyc(){
+ if(isKycApproved)return true;
+ alert("KYC verification required. Please submit your KYC and wait for admin approval.");
+ openPage("profile");
+ return false;
+}
+
+function updateKycLocks(){
+ const locked=!isKycApproved;
+ $("kycLockBanner").classList.toggle("hidden",!locked);
+ $("withdrawOpenButton").disabled=locked;
+ $("supportButton").disabled=locked;
+ document.querySelectorAll(".kyc-action").forEach(button=>{
+  button.disabled=locked;
+ });
+}
+
 function hideAuthForms(){["loginForm","registerForm","forgotForm","newPasswordForm"].forEach(id=>$(id).classList.add("hidden"))}
 
 window.showLogin=function(){hideAuthForms();$("loginForm").classList.remove("hidden");$("loginTab").classList.add("active");$("registerTab").classList.remove("active");msg("")}
@@ -225,7 +253,7 @@ $("registerForm").addEventListener("submit",async e=>{
   const {data,error}=await db.auth.signUp({email,password,options:{data:{full_name:name,phone}}});
   if(error)throw error;
   if(data.session)await loadDashboard(data.session.user);
-  else{$("registerForm").reset();showLogin();msg("Account created. Verify your email, then login.")}
+  else{$("registerForm").reset();showLogin();msg("Account created. Please login.");}
  }catch(err){msg("Registration error: "+err.message)}
  $("registerButton").disabled=false;
 });
@@ -266,11 +294,14 @@ $("newPasswordForm").addEventListener("submit",async e=>{
 
 async function loadDashboard(user){
  currentUser=user;
+ isKycApproved=false;
  $("authArea").classList.add("hidden");
  $("dashboard").classList.remove("hidden");
  $("bottomNav").classList.remove("hidden");
  $("welcome").textContent=user.user_metadata?.full_name||user.email||"Customer";
  await loadProfile();
+ await loadKyc(user);
+ updateKycLocks();
  await loadHomeData();
  openPage("home");
 }
@@ -331,13 +362,14 @@ window.loadShop=async function(){
    const title=document.createElement("h3");title.textContent=p.name||"Product";
    const cat=document.createElement("p");cat.className="small";cat.textContent=p.category||"";
    const price=document.createElement("p");price.className="product-price";price.textContent=money(p.price);
-   const btn=document.createElement("button");btn.className="full";btn.textContent="Add to My Products";btn.onclick=()=>addProduct(p);
+   const btn=document.createElement("button");btn.className="full kyc-action";btn.textContent="Add to My Products";btn.disabled=!isKycApproved;btn.onclick=()=>addProduct(p);
    card.append(title,cat,price,btn);box.appendChild(card);
   });
  }catch(err){box.textContent="Shop error: "+err.message}
 };
 
 async function addProduct(p){
+ if(!requireKyc())return;
  try{
   const {error}=await db.from("customer_products").insert({
    customer_id:currentUser.id,product_id:String(p.id),
@@ -367,7 +399,6 @@ window.loadMyProducts=async function(){
  }catch(err){box.textContent="Products error: "+err.message}
 };
 
-/* Admin order amount is taken from total_amount first. */
 function orderPrice(o){
  const value=o.total_amount??o.product_price??o["total amount"]??0;
  return Math.max(0,Number(value)||0);
@@ -383,108 +414,56 @@ function orderStatus(o){
  const s=String(o.status||"pending").toLowerCase().trim();
  if(s==="pending"||s==="pickup")return "PICKUP";
  if(["completed","complete","delivered"].includes(s))return "COMPLETE";
- if(["processing","shipped","picked_up","picked up","in_progress"].includes(s))return "PROCESSING";
+ if(["processing","shipped","shipping","picked_up","picked up","in_progress"].includes(s))return "PROCESSING";
  return s.toUpperCase();
 }
 
-/*
- WALLET RULES:
- 1. Applied Balance is calculated ONLY from orders already picked up
-    and not yet completed.
- 2. Pending orders are not included in Applied Balance.
- 3. Completed orders are removed from Applied Balance.
- 4. Available Balance and Profit use wallet_transactions.
-    Purchase/applied entries reduce available balance.
-    Profit/refund/add-balance entries increase available balance.
-*/
 async function getWalletSummary(){
  const [txResult,orderResult]=await Promise.all([
-  db.from("wallet_transactions")
-   .select("amount,transaction_type,status")
-   .eq("customer_id",currentUser.id),
-  db.from("orders")
-   .select("id,total_amount,product_price,status")
-   .eq("customer_id",currentUser.id)
+  db.from("wallet_transactions").select("amount,transaction_type,status").eq("customer_id",currentUser.id),
+  db.from("orders").select("id,total_amount,product_price,status").eq("customer_id",currentUser.id)
  ]);
-
  if(txResult.error)throw txResult.error;
  if(orderResult.error)throw orderResult.error;
-
  let available=0,profit=0,applied=0;
-
  (txResult.data||[]).forEach(t=>{
   const type=String(t.transaction_type||"").toLowerCase().trim();
   const status=String(t.status||"").toLowerCase().trim();
   const amount=Math.abs(Number(t.amount)||0);
-
   if(!["approved","completed","success","successful","paid"].includes(status))return;
-
-  if(type==="profit"){
-   profit+=amount;
-   available+=amount;
-  }else if(type==="purchase"||type==="applied"){
-   available-=amount;
-  }else if(type==="refund"){
-   available+=amount;
-  }else if(type==="withdrawal"||type.includes("minus")||type.includes("debit")||type.includes("payment")){
-   available-=amount;
-  }else if(type.includes("add_balance")||type==="credit"||type==="deposit"||type==="income"||type==="add balance"){
-   available+=amount;
-  }
+  if(type==="profit"){profit+=amount;available+=amount}
+  else if(type==="purchase"||type==="applied")available-=amount;
+  else if(type==="refund")available+=amount;
+  else if(type==="withdrawal"||type.includes("minus")||type.includes("debit")||type.includes("payment"))available-=amount;
+  else if(type.includes("add_balance")||type==="credit"||type==="deposit"||type==="income"||type==="add balance")available+=amount;
  });
-
- /* Applied Balance: only orders that have actually been picked up.
-    Pending/Pickup orders are not counted.
-    Completed/rejected/cancelled orders are not counted. */
  (orderResult.data||[]).forEach(o=>{
   const status=String(o.status||"").toLowerCase().trim();
-  const pickedUpStatuses=["processing","shipped","picked_up","picked up","in_progress"];
-  if(pickedUpStatuses.includes(status)){
-   applied+=orderPrice(o);
-  }
+  const pickedUpStatuses=["processing","shipped","shipping","picked_up","picked up","in_progress"];
+  if(pickedUpStatuses.includes(status))applied+=orderPrice(o);
  });
-
- return {
-  available:Math.max(0,available),
-  profit:Math.max(0,profit),
-  applied:Math.max(0,applied)
- };
+ return {available:Math.max(0,available),profit:Math.max(0,profit),applied:Math.max(0,applied)};
 }
 
 async function pickupOrder(orderId,button,statusElement,order){
- if(!currentUser)return;
- button.disabled=true;
- button.textContent="Checking Balance...";
-
+ if(!currentUser||!requireKyc())return;
+ button.disabled=true;button.textContent="Checking Balance...";
  try{
   const summary=await getWalletSummary();
   const requiredAmount=orderPrice(order);
-
   if(summary.available+0.000001<requiredAmount){
-   button.textContent="INSUFFICIENT BALANCE";
-   button.disabled=true;
-   button.style.background="#b91c1c";
-   statusElement.textContent="INSUFFICIENT BALANCE";
-   statusElement.className="status insufficient";
+   button.textContent="INSUFFICIENT BALANCE";button.disabled=true;button.style.background="#b91c1c";
+   statusElement.textContent="INSUFFICIENT BALANCE";statusElement.className="status insufficient";
    alert("INSUFFICIENT BALANCE\n\nOrder Amount: "+money(requiredAmount)+"\nAvailable Balance: "+money(summary.available)+"\n\nPlease add balance before picking up this order.");
    return;
   }
-
   button.textContent="Processing...";
   const {data,error}=await db.rpc("customer_pickup_order",{p_order_id:orderId});
   if(error)throw error;
   if(!data||data.success!==true)throw new Error(data?.message||"Pickup failed.");
-
-  statusElement.className="status shipped";
-  statusElement.textContent="PROCESSING";
-  button.remove();
-
+  statusElement.className="status shipped";statusElement.textContent="PROCESSING";button.remove();
   await Promise.all([loadOrders(),loadWallet(),loadHomeData()]);
- }catch(err){
-  button.disabled=false;
-  button.textContent="PICKUP";
-  alert("Pickup error: "+err.message);
- }
+ }catch(err){button.disabled=false;button.textContent="PICKUP";alert("Pickup error: "+err.message)}
 }
 
 function makeOrderCard(o){
@@ -496,18 +475,13 @@ function makeOrderCard(o){
  const returned=document.createElement("p");returned.textContent="Expected Return: "+money(orderPrice(o)+orderProfit(o));
  const status=document.createElement("span");
  const s=String(o.status||"pending").toLowerCase().trim();
-
- status.className="status "+(
-  ["pending","pickup","shipped","processing","picked_up","picked up"].includes(s)?"shipped":
-  ["rejected","cancelled"].includes(s)?"rejected":""
- );
+ status.className="status "+(["pending","pickup","shipped","shipping","processing","picked_up","picked up"].includes(s)?"shipped":["rejected","cancelled"].includes(s)?"rejected":"");
  status.textContent=orderStatus(o);
  card.append(title,quantity,price,profit,returned,status);
-
  if(s==="pending"||s==="pickup"){
   const button=document.createElement("button");
-  button.className="full green-btn";
-  button.textContent="PICKUP";
+  button.className="full green-btn kyc-action";button.textContent="PICKUP";
+  button.disabled=!isKycApproved;
   button.onclick=()=>pickupOrder(o.id,button,status,o);
   card.appendChild(button);
  }
@@ -520,7 +494,6 @@ window.loadOrders=async function(){
   const {data,error}=await db.from("orders").select("*").eq("customer_id",currentUser.id).order("created_at",{ascending:false});
   if(error)throw error;
   const orders=data||[];
-
   if(orders.length){
    const {data:itemData,error:itemError}=await db.from("order_items").select("*").in("order_id",orders.map(o=>o.id));
    if(itemError)throw itemError;
@@ -534,16 +507,10 @@ window.loadOrders=async function(){
     }
    });
   }
-
-  cachedOrders=orders;
-  renderRecentOrders();
+  cachedOrders=orders;renderRecentOrders();
   if(!orders.length){box.textContent="No orders yet.";return}
-  box.innerHTML="";
-  orders.forEach(o=>box.appendChild(makeOrderCard(o)));
- }catch(err){
-  box.textContent="Orders error: "+err.message;
-  console.error(err);
- }
+  box.innerHTML="";orders.forEach(o=>box.appendChild(makeOrderCard(o)));
+ }catch(err){box.textContent="Orders error: "+err.message;console.error(err)}
 };
 
 function renderRecentOrders(){
@@ -553,8 +520,7 @@ function renderRecentOrders(){
   const row=document.createElement("div");row.className="order-row";
   const left=document.createElement("div");
   const title=document.createElement("strong");title.textContent="Order";
-  const date=document.createElement("div");date.className="muted";
-  date.textContent=o.created_at?new Date(o.created_at).toLocaleDateString():"";
+  const date=document.createElement("div");date.className="muted";date.textContent=o.created_at?new Date(o.created_at).toLocaleDateString():"";
   left.append(title,date);
   const right=document.createElement("div");right.style.textAlign="right";
   const amount=document.createElement("strong");amount.textContent=money(orderPrice(o));
@@ -573,10 +539,7 @@ window.loadWallet=async function(){
   $("homeBalance").textContent=money(summary.available);
   $("homeProfit").textContent=money(summary.profit);
   $("walletMessage").textContent="";
- }catch(err){
-  $("walletMessage").textContent="Wallet error: "+err.message;
-  console.error(err);
- }
+ }catch(err){$("walletMessage").textContent="Wallet error: "+err.message;console.error(err)}
 };
 
 window.resetWithdrawScreen=function(){
@@ -585,50 +548,46 @@ window.resetWithdrawScreen=function(){
  $("withdrawMessage").textContent="";
 };
 window.openWithdrawOptions=function(){
+ if(!requireKyc())return;
  $("withdrawOpenButton").classList.add("hidden");
  $("withdrawOptions").classList.remove("hidden");
- $("usdtForm").classList.add("hidden");
- $("bankForm").classList.add("hidden");
+ $("usdtForm").classList.add("hidden");$("bankForm").classList.add("hidden");
 };
 window.showWithdraw=function(method){
+ if(!requireKyc())return;
  $("withdrawOptions").classList.add("hidden");
  $("withdrawOpenButton").classList.add("hidden");
  $("usdtForm").classList.toggle("hidden",method!=="usdt");
  $("bankForm").classList.toggle("hidden",method!=="bank");
 };
 window.backToMethods=function(){
- $("usdtForm").classList.add("hidden");
- $("bankForm").classList.add("hidden");
+ $("usdtForm").classList.add("hidden");$("bankForm").classList.add("hidden");
  $("withdrawOptions").classList.remove("hidden");
 };
 
 async function submitWithdrawal(method,amount,details,formId,buttonId){
- $(buttonId).disabled=true;
- $("withdrawMessage").textContent="Submitting request...";
+ if(!requireKyc())return;
+ $(buttonId).disabled=true;$("withdrawMessage").textContent="Submitting request...";
  try{
   const summary=await getWalletSummary();
   if(!Number.isFinite(summary.available)||amount>summary.available)throw new Error("Insufficient available balance.");
-  const {error}=await db.from("withdrawals").insert({
-   customer_id:currentUser.id,amount,method,
-   account_details:JSON.stringify(details),status:"Pending"
-  });
+  const {error}=await db.from("withdrawals").insert({customer_id:currentUser.id,amount,method,account_details:JSON.stringify(details),status:"Pending"});
   if(error)throw error;
-  $(formId).reset();
-  $("withdrawMessage").textContent="Withdrawal submitted. Status: Pending.";
+  $(formId).reset();$("withdrawMessage").textContent="Withdrawal submitted. Status: Pending.";
   await loadWithdrawals();await loadWallet();resetWithdrawScreen();
  }catch(err){$("withdrawMessage").textContent="Withdrawal error: "+err.message}
  $(buttonId).disabled=false;
 }
 
 $("usdtForm").addEventListener("submit",async e=>{
- e.preventDefault();
+ e.preventDefault();if(!requireKyc())return;
  const amount=Number($("usdtAmount").value),address=$("usdtAddress").value.trim();
  if(!address||!Number.isFinite(amount)||amount<=0){$("withdrawMessage").textContent="Enter a valid USDT address and amount.";return}
  await submitWithdrawal("USDT",amount,{usdt_address:address},"usdtForm","usdtSubmit");
 });
 
 $("bankForm").addEventListener("submit",async e=>{
- e.preventDefault();
+ e.preventDefault();if(!requireKyc())return;
  const amount=Number($("bankAmount").value);
  const details={account_name:$("bankAccountName").value.trim(),bank_name:$("bankName").value.trim(),iban:$("bankIban").value.trim(),account_number:$("bankAccountNumber").value.trim()};
  if(!details.account_name||!details.bank_name||!details.iban||!details.account_number||!Number.isFinite(amount)||amount<=0){$("withdrawMessage").textContent="Complete all bank details and enter a valid amount.";return}
@@ -698,14 +657,31 @@ async function loadKyc(user){
  try{
   const {data,error}=await db.from("kyc_submissions").select("status,created_at").eq("customer_id",user.id).order("created_at",{ascending:false}).limit(1);
   if(error)throw error;
-  if(data?.length&&String(data[0].status).trim().toLowerCase()==="approved"){
-   $("verificationStatus").textContent="Verified";$("verificationStatus").className="status";$("kycSection").classList.add("hidden");
+
+  isKycApproved=!!(data?.length&&String(data[0].status||"").trim().toLowerCase()==="approved");
+
+  if(isKycApproved){
+   $("verificationStatus").textContent="Verified";
+   $("verificationStatus").className="status";
+   $("kycSection").classList.add("hidden");
+   $("kycLockBanner").classList.add("hidden");
   }else{
-   $("verificationStatus").textContent="Verification pending";$("verificationStatus").className="status pending";$("kycSection").classList.remove("hidden");
-   $("kycStatus").textContent=data?.length?"Your KYC is pending approval.":"";
+   $("verificationStatus").textContent=data?.length?
+    (String(data[0].status).toLowerCase()==="rejected"?"KYC Rejected":"Verification Pending"):
+    "Verification Pending";
+   $("verificationStatus").className="status pending";
+   $("kycSection").classList.remove("hidden");
+   $("kycStatus").textContent=data?.length?
+    (String(data[0].status).toLowerCase()==="rejected"?"Your KYC was rejected. Please submit again.":"Your KYC is pending approval."):"";
   }
+  updateKycLocks();
  }catch(err){
-  $("verificationStatus").textContent="Verification status unavailable";$("kycSection").classList.remove("hidden");$("kycStatus").textContent="KYC error: "+err.message;
+  isKycApproved=false;
+  $("verificationStatus").textContent="Verification status unavailable";
+  $("verificationStatus").className="status pending";
+  $("kycSection").classList.remove("hidden");
+  $("kycStatus").textContent="KYC error: "+err.message;
+  updateKycLocks();
  }
 }
 
@@ -721,7 +697,8 @@ $("kycForm").addEventListener("submit",async e=>{
   if(uploadError)throw uploadError;
   const {error}=await db.from("kyc_submissions").insert({customer_id:currentUser.id,document_type:type,document_url:path,status:"Pending"});
   if(error)throw error;
-  $("kycForm").reset();await loadKyc(currentUser);$("kycStatus").textContent="KYC submitted successfully.";
+  $("kycForm").reset();await loadKyc(currentUser);
+  $("kycStatus").textContent="KYC submitted successfully. Please wait for admin approval.";
  }catch(err){$("kycStatus").textContent="KYC error: "+err.message}
  $("kycButton").disabled=false;
 });
@@ -753,6 +730,7 @@ window.loadSupport=async function(){
 
 $("supportForm").addEventListener("submit",async e=>{
  e.preventDefault();
+ if(!requireKyc())return;
  const message=$("supportInput").value.trim();if(!message)return;
  $("supportButton").disabled=true;$("supportMessage").textContent="Sending message...";
  try{
@@ -760,13 +738,13 @@ $("supportForm").addEventListener("submit",async e=>{
   if(error)throw error;
   $("supportInput").value="";$("supportMessage").textContent="Message sent to Customer Service.";await loadSupport();
  }catch(err){$("supportMessage").textContent="Message error: "+err.message}
- $("supportButton").disabled=false;
+ $("supportButton").disabled=!isKycApproved;
 });
 
 window.logout=async function(){
  const {error}=await db.auth.signOut();
  if(error){msg("Logout error: "+error.message);return}
- currentUser=null;
+ currentUser=null;isKycApproved=false;
  $("dashboard").classList.add("hidden");$("bottomNav").classList.add("hidden");$("authArea").classList.remove("hidden");
  $("loginForm").reset();showLogin();
 };
