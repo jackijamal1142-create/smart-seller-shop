@@ -944,8 +944,8 @@ async function loadKyc(user){
   if(error)throw error;
 
   const records=data||[];
-  const normalizeStatus=value=>String(value||"").trim().toLowerCase().replace(/[ _-]+/g," ");
-  const approved=records.find(row=>/approv|verif/.test(normalizeStatus(row.status)));
+  const normalizeStatus=value=>String(value||"").trim().toLowerCase().replace(/[^a-z]/g,"");
+  const approved=records.find(row=>/appro?v|verif/.test(normalizeStatus(row.status)));
   const pending=records.find(row=>["pending","processing","under review"].includes(normalizeStatus(row.status)));
   const rejected=records.find(row=>normalizeStatus(row.status)==="rejected");
 
