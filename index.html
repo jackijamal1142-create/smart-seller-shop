@@ -56,6 +56,9 @@ button.link{background:none;color:var(--blue);padding:5px;width:auto}
 .order-card .order-details{flex:1;min-width:0}
 .order-card .order-head h3{min-width:0;overflow-wrap:anywhere;margin:0 0 4px;font-size:13px}
 .order-card .order-details p{font-size:11px;line-height:1.2;margin:3px 0}
+.order-card .order-detail-line{display:flex;align-items:center;gap:7px;margin:3px 0}
+.order-card .order-detail-line .status{font-size:9px;padding:4px 7px;margin:0}
+
 
 .order-card h3{font-size:13px;margin:0 0 3px}
 .order-card p{font-size:11px;line-height:1.12;margin:2px 0}
@@ -674,9 +677,11 @@ function makeOrderCard(o){
  const s=String(o.status||"pending").toLowerCase().trim();
  status.className="status "+(["pending","pickup","shipped","shipping","processing","picked_up","picked up"].includes(s)?"shipped":["rejected","cancelled"].includes(s)?"rejected":"");
  status.textContent="Current Status: "+orderStatus(o);
+ const detailLine=document.createElement("div");detailLine.className="order-detail-line";
+ detailLine.append(status);
  const progress=document.createElement("div");progress.className="order-progress";
  orderProgress(s).forEach(step=>progress.appendChild(step));
- card.append(head,status,progress);
+ card.append(head,detailLine,progress);
  if(s==="pending"||s==="pickup"){
   const button=document.createElement("button");
   button.className="full green-btn kyc-action";button.textContent="PICKUP";
