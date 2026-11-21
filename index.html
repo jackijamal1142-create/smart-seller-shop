@@ -223,13 +223,14 @@ button,input,select,textarea{font-size:14px}
  <section id="ordersPage" class="page hidden">
   
   <div id="ordersList">Loading orders...</div>
- </section>
-
- <section id="walletPage" class="page hidden">
   <div class="card" style="margin-top:15px">
    <h3>Recent Orders <button class="link" style="float:right" onclick="openPage('orders')">View All →</button></h3>
    <div id="recentOrders">Loading orders...</div>
   </div>
+ </section>
+
+ <section id="walletPage" class="page hidden">
+
   <div class="stat">Available Balance<strong id="walletBalance" class="green">$0.00</strong></div>
   <div class="stat">Total Profit<strong id="walletProfit" class="purple">$0.00</strong></div>
   <div class="stat">Applied Balance<strong id="walletApplied" class="blue">$0.00</strong></div>
@@ -723,15 +724,17 @@ window.loadOrders=async function(){
    });
   }
   cachedOrders=orders;renderRecentOrders();
-  if(!orders.length){box.textContent="No orders yet.";return}
-  box.innerHTML="";orders.forEach(o=>box.appendChild(makeOrderCard(o)));
+  const activeOrders=orders.filter(o=>orderStatus(o)!=="COMPLETE");
+  if(!activeOrders.length){box.textContent="No active orders.";}
+  else{box.innerHTML="";activeOrders.forEach(o=>box.appendChild(makeOrderCard(o)));}
  }catch(err){box.textContent="Orders error: "+err.message;console.error(err)}
 };
 
 function renderRecentOrders(){
- const box=$("recentOrders");box.innerHTML="";
- if(!cachedOrders.length){box.textContent="No recent orders.";return}
- cachedOrders.slice(0,3).forEach(o=>{
+ const box=$("recentOrders");if(!box)return;box.innerHTML="";
+ const completedOrders=cachedOrders.filter(o=>orderStatus(o)==="COMPLETE");
+ if(!completedOrders.length){box.textContent="No completed orders yet.";return}
+ completedOrders.slice(0,3).forEach(o=>{
   const row=document.createElement("div");row.className="order-row";
   const left=document.createElement("div");
   const title=document.createElement("strong");title.textContent="Order";
