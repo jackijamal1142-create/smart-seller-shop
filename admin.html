@@ -4,285 +4,305 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Smart Seller Admin Dashboard</title>
+<title>Smart Seller Admin</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-body {
-  font-family: Arial, sans-serif;
-  background: #f3f4f6;
-  margin: 0;
-  padding: 20px;
-}
-.container {
-  max-width: 900px;
-  margin: auto;
-}
-.card {
-  background: white;
-  padding: 18px;
-  margin: 15px 0;
-  border-radius: 10px;
-  box-shadow: 0 2px 8px #ddd;
-}
-input, button {
-  padding: 11px;
-  margin: 5px 0;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-}
-input {
-  width: 95%;
-}
-button {
-  cursor: pointer;
-  border: none;
-  color: white;
-  background: #2563eb;
-}
-.approve { background: #16a34a; }
-.reject { background: #dc2626; }
-.logout { background: #555; }
-.status {
-  font-weight: bold;
-  margin: 10px 0;
-}
-a { color: #2563eb; }
-.hidden { display: none; }
+*{box-sizing:border-box}
+body{margin:0;background:#101827;color:#e8eef8;font-family:Arial,sans-serif}
+header{background:#17243a;padding:18px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+h1{font-size:21px;margin:0;color:#7ee6d2}
+button{border:0;border-radius:8px;padding:10px 14px;background:#20b99a;color:#071b20;font-weight:bold;cursor:pointer;margin:3px}
+button.danger{background:#ef6474;color:white}
+button.secondary{background:#34445d;color:white}
+input,select,textarea{width:100%;padding:11px;margin:6px 0 12px;border:1px solid #3b4b63;border-radius:8px;background:#1a2940;color:white}
+label{font-size:13px;color:#b9c8dc}
+.login{max-width:400px;margin:65px auto;background:#17243a;padding:25px;border-radius:15px}
+#app{display:none}
+nav{display:flex;gap:6px;flex-wrap:wrap;padding:12px;background:#17243a}
+nav button{background:#293a54;color:white}
+nav button.active{background:#20b99a;color:#071b20}
+main{padding:16px;max-width:1200px;margin:auto}
+.panel{background:#17243a;border:1px solid #2c3c55;border-radius:12px;padding:16px;margin-bottom:15px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}
+.stat{background:#22334d;padding:17px;border-radius:10px}
+.stat strong{display:block;font-size:25px;color:#7ee6d2;margin-top:8px}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:550px}
+th,td{padding:10px;border-bottom:1px solid #34445d;text-align:left;vertical-align:top}
+th{color:#7ee6d2}
+.tablewrap{overflow:auto}
+.small{font-size:12px;color:#aabbd0}
+.hidden{display:none}
+.error{color:#ff8792}
+.success{color:#7ee6d2}
+pre{white-space:pre-wrap;overflow-wrap:anywhere}
 </style>
 </head>
 <body>
-<div class="container">
 
-<h1>Smart Seller Admin Dashboard</h1>
+<header>
+  <h1>SMART SELLER — ADMIN</h1>
+  <button class="danger" onclick="logout()">Logout</button>
+</header>
 
-<div id="loginBox" class="card">
+<div id="loginBox" class="login">
   <h2>Admin Login</h2>
-  <input id="email" type="email" placeholder="Admin Email">
-  <input id="password" type="password" placeholder="Password">
-  <br>
-  <button id="loginBtn" onclick="login()">Login</button>
-  <p id="loginMessage"></p>
+  <label>Email</label>
+  <input id="email" type="email" value="jackijamal1142@gmail.com">
+  <label>Password</label>
+  <input id="password" type="password" placeholder="Admin password">
+  <button onclick="login()">Login</button>
+  <p id="loginMsg" class="error"></p>
 </div>
 
-<div id="dashboard" class="hidden">
-  <h2>Welcome, Admin</h2>
-  <button onclick="loadKYC()">Refresh KYC</button>
-  <button class="logout" onclick="logout()">Logout</button>
-
-  <h2>KYC Submissions</h2>
-  <div id="kycList">Loading...</div>
-</div>
-
+<div id="app">
+<nav id="tabs"></nav>
+<main>
+  <div id="message"></div>
+  <section id="content"></section>
+</main>
 </div>
 
 <script>
 const SUPABASE_URL = "https://biiagnjcyzvqbezabpxz.supabase.co";
 const SUPABASE_KEY = "sb_publishable_QrBZWYfua111aN24MjlXHw_c-Cf5yB1";
+const db = window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
-const db = window.supabase.createClient(
-  SUPABASE_URL,
-  SUPABASE_KEY
-);
+const tables = [
+  ["profiles","Customers"],
+  ["products","Products"],
+  ["customer_products","Customer Products"],
+  ["orders","Orders"],
+  ["order_items","Order Items"],
+  ["wallet_transactions","Wallet"],
+  ["withdrawals","Withdrawals"],
+  ["kyc_submissions","KYC"],
+  ["support_messages","Customer Service"],
+  ["payment_accounts","Payment Accounts"],
+  ["payment_submissions","Payment Submissions"],
+  ["notifications","Notifications"],
+  ["credit_score_history","Credit Score History"],
+  ["product_requests","Product Requests"]
+];
 
-function message(text) {
-  document.getElementById("loginMessage").textContent = text;
+let currentTable = "profiles";
+let records = [];
+
+function msg(text,type="success"){
+  const el=document.getElementById("message");
+  el.className=type;
+  el.textContent=text;
+  setTimeout(()=>{el.textContent="";},5000);
 }
 
-async function login() {
-  const email = document.getElementById("email").value.trim();
-  const password = document.getElementById("password").value;
+async function login(){
+  const email=document.getElementById("email").value.trim();
+  const password=document.getElementById("password").value;
+  const out=document.getElementById("loginMsg");
+  out.textContent="Logging in...";
 
-  if (!email || !password) {
-    message("Email aur password enter karein.");
-    return;
-  }
+  const {data,error}=await db.auth.signInWithPassword({email,password});
+  if(error){out.textContent=error.message;return;}
 
-  message("Logging in...");
+  const {data:admin,error:adminError}=await db
+    .from("admin_users").select("user_id")
+    .eq("user_id",data.user.id).maybeSingle();
 
-  const { error } = await db.auth.signInWithPassword({
-    email,
-    password
-  });
-
-  if (error) {
-    message(error.message);
-    return;
-  }
-
-  await checkAdmin();
-}
-
-async function checkAdmin() {
-  const { data: sessionData } = await db.auth.getSession();
-  const user = sessionData.session?.user;
-
-  if (!user) {
-    showLogin();
-    return;
-  }
-
-  const { data, error } = await db
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", user.id)
-    .eq("role", "admin")
-    .maybeSingle();
-
-  if (error || !data) {
-    alert("Admin permission nahi mili.");
+  if(adminError || !admin){
     await db.auth.signOut();
-    showLogin();
+    out.textContent="This account is not authorized as admin.";
     return;
   }
 
-  document.getElementById("loginBox").classList.add("hidden");
-  document.getElementById("dashboard").classList.remove("hidden");
-
-  await loadKYC();
+  document.getElementById("loginBox").style.display="none";
+  document.getElementById("app").style.display="block";
+  buildTabs();
+  showDashboard();
 }
 
-function showLogin() {
-  document.getElementById("loginBox").classList.remove("hidden");
-  document.getElementById("dashboard").classList.add("hidden");
-}
-
-async function logout() {
+async function logout(){
   await db.auth.signOut();
-  showLogin();
+  location.reload();
 }
 
-async function loadKYC() {
-  const list = document.getElementById("kycList");
-  list.textContent = "Loading KYC records...";
+function buildTabs(){
+  const nav=document.getElementById("tabs");
+  nav.innerHTML="";
+  const all=[["dashboard","Dashboard"],...tables.map(t=>[t[0],t[1]])];
+  all.forEach(([id,name])=>{
+    const b=document.createElement("button");
+    b.textContent=name;
+    b.onclick=()=>id==="dashboard"?showDashboard():openTable(id);
+    nav.appendChild(b);
+  });
+}
 
-  const { data, error } = await db
-    .from("kyc_submissions")
-    .select("*")
-    .order("created_at", { ascending: false });
+async function showDashboard(){
+  currentTable="";
+  const content=document.getElementById("content");
+  content.innerHTML="<h2>Admin Dashboard</h2><div class='cards' id='stats'></div>";
+  const stats=document.getElementById("stats");
+  for(const [table,name] of tables){
+    const {count,error}=await db.from(table).select("*",{count:"exact",head:true});
+    const card=document.createElement("div");
+    card.className="stat";
+    card.innerHTML="";
+    const title=document.createElement("div");
+    title.textContent=name;
+    const number=document.createElement("strong");
+    number.textContent=error?"Error":(count??0);
+    card.append(title,number);
+    stats.appendChild(card);
+  }
+  msg("Dashboard loaded");
+}
 
-  if (error) {
-    list.textContent = "KYC load error: " + error.message;
+async function openTable(table){
+  currentTable=table;
+  document.getElementById("content").innerHTML="<h2>Loading...</h2>";
+  const {data,error}=await db.from(table).select("*").order("created_at",{ascending:false}).limit(100);
+  if(error){
+    document.getElementById("content").innerHTML="<h2>"+escapeHtml(table)+"</h2><p class='error'>"+escapeHtml(error.message)+"</p>";
+    return;
+  }
+  records=data||[];
+  renderTable();
+}
+
+function renderTable(){
+  const content=document.getElementById("content");
+  const title=tables.find(t=>t[0]===currentTable)?.[1]||currentTable;
+  content.innerHTML=`
+    <div class="panel">
+      <h2>${escapeHtml(title)}</h2>
+      <p class="small">Showing up to 100 records. Select Edit to update a record, or Delete to remove it.</p>
+      <button onclick="newRecord()">Add New Record</button>
+      <button class="secondary" onclick="openTable(currentTable)">Refresh</button>
+    </div>
+    <div class="panel" id="editor" style="display:none">
+      <h3 id="editorTitle">Record Editor</h3>
+      <label>Record data (JSON)</label>
+      <textarea id="jsonData" rows="12" spellcheck="false"></textarea>
+      <button onclick="saveRecord()">Save Record</button>
+      <button class="secondary" onclick="closeEditor()">Cancel</button>
+      <p class="small">For new records, do not include an auto-generated id unless your table requires it.</p>
+    </div>
+    <div class="panel tablewrap">
+      <table>
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>`;
+  const head=document.getElementById("tableHead");
+  const body=document.getElementById("tableBody");
+
+  if(!records.length){
+    head.innerHTML="<tr><th>No records yet</th></tr>";
+    body.innerHTML="<tr><td>No data found in this table.</td></tr>";
     return;
   }
 
-  list.innerHTML = "";
+  const keys=Object.keys(records[0]);
+  head.innerHTML="<tr>"+keys.map(k=>"<th>"+escapeHtml(k)+"</th>").join("")+"<th>Actions</th></tr>";
 
-  if (!data || data.length === 0) {
-    list.textContent = "No KYC submissions found.";
-    return;
-  }
-
-  const heading = document.createElement("h3");
-  heading.textContent = "KYC records: " + data.length;
-  list.appendChild(heading);
-
-  for (const item of data) {
-    const card = document.createElement("div");
-    card.className = "card";
-
-    const title = document.createElement("h3");
-    title.textContent = item.document_type || "KYC Document";
-    card.appendChild(title);
-
-    const customer = document.createElement("p");
-    customer.textContent = "Customer ID: " + item.customer_id;
-    card.appendChild(customer);
-
-    const status = (item.status || "pending").toLowerCase();
-
-    const statusText = document.createElement("p");
-    statusText.className = "status";
-
-    if (status === "approved") {
-      statusText.textContent = "Status: Completed";
-      statusText.style.color = "green";
-    } else if (status === "rejected") {
-      statusText.textContent = "Status: Rejected";
-      statusText.style.color = "red";
-    } else {
-      statusText.textContent = "Status: Pending";
-      statusText.style.color = "#b45309";
-    }
-
-    card.appendChild(statusText);
-
-    const date = document.createElement("p");
-    date.textContent = "Date: " +
-      (item.created_at ? new Date(item.created_at).toLocaleString() : "N/A");
-    card.appendChild(date);
-
-    if (item.document_url) {
-      const { data: signed, error: signedError } = await db.storage
-        .from("kyc-documents")
-        .createSignedUrl(item.document_url, 3600);
-
-      if (!signedError && signed?.signedUrl) {
-        const link = document.createElement("a");
-        link.href = signed.signedUrl;
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        link.textContent = "View uploaded document";
-        card.appendChild(link);
-      } else {
-        const note = document.createElement("p");
-        note.textContent = "Document link unavailable.";
-        card.appendChild(note);
-      }
-    }
-
-    if (status !== "approved" && status !== "rejected") {
-      const approveBtn = document.createElement("button");
-      approveBtn.className = "approve";
-      approveBtn.textContent = "Approve";
-      approveBtn.onclick = () => updateKYC(item.id, "approved");
-      card.appendChild(approveBtn);
-
-      const rejectBtn = document.createElement("button");
-      rejectBtn.className = "reject";
-      rejectBtn.textContent = "Reject";
-      rejectBtn.onclick = () => updateKYC(item.id, "rejected");
-      card.appendChild(rejectBtn);
-    }
-
-    list.appendChild(card);
-  }
+  records.forEach((record,index)=>{
+    const tr=document.createElement("tr");
+    keys.forEach(key=>{
+      const td=document.createElement("td");
+      const value=record[key];
+      td.textContent=value===null?"NULL":typeof value==="object"?JSON.stringify(value):String(value);
+      tr.appendChild(td);
+    });
+    const actions=document.createElement("td");
+    const edit=document.createElement("button");
+    edit.textContent="Edit";
+    edit.onclick=()=>editRecord(index);
+    const del=document.createElement("button");
+    del.textContent="Delete";
+    del.className="danger";
+    del.onclick=()=>deleteRecord(index);
+    actions.append(edit,del);
+    tr.appendChild(actions);
+    body.appendChild(tr);
+  });
 }
 
-async function updateKYC(id, newStatus) {
-  const confirmText = newStatus === "approved"
-    ? "KYC approve karna hai?"
-    : "KYC reject karna hai?";
-
-  if (!confirm(confirmText)) return;
-
-  const { error } = await db
-    .from("kyc_submissions")
-    .update({ status: newStatus })
-    .eq("id", id);
-
-  if (error) {
-    alert("Update error: " + error.message);
-    return;
-  }
-
-  alert(
-    newStatus === "approved"
-      ? "KYC Completed successfully!"
-      : "KYC Rejected successfully!"
-  );
-
-  await loadKYC();
+function newRecord(){
+  document.getElementById("editor").style.display="block";
+  document.getElementById("editorTitle").textContent="Add New Record";
+  document.getElementById("jsonData").value="{}";
+  document.getElementById("jsonData").dataset.mode="new";
+  document.getElementById("jsonData").dataset.oldid="";
 }
 
-db.auth.onAuthStateChange((event, session) => {
-  if (session) {
-    setTimeout(() => checkAdmin(), 0);
-  } else {
-    showLogin();
-  }
-});
+function editRecord(index){
+  const record=records[index];
+  document.getElementById("editor").style.display="block";
+  document.getElementById("editorTitle").textContent="Edit Record";
+  document.getElementById("jsonData").value=JSON.stringify(record,null,2);
+  document.getElementById("jsonData").dataset.mode="edit";
+  document.getElementById("jsonData").dataset.oldid=record.id??"";
+  document.getElementById("editor").scrollIntoView({behavior:"smooth"});
+}
 
-checkAdmin();
+function closeEditor(){
+  document.getElementById("editor").style.display="none";
+}
+
+async function saveRecord(){
+  let obj;
+  try{
+    obj=JSON.parse(document.getElementById("jsonData").value);
+    if(!obj || Array.isArray(obj) || typeof obj!=="object") throw new Error("Enter one JSON object.");
+  }catch(e){msg("Invalid JSON: "+e.message,"error");return;}
+
+  const area=document.getElementById("jsonData");
+  let result;
+  if(area.dataset.mode==="edit"){
+    const oldid=area.dataset.oldid;
+    if(!oldid){msg("This record has no id. Cannot safely update it.","error");return;}
+    delete obj.id;
+    result=await db.from(currentTable).update(obj).eq("id",oldid);
+  }else{
+    result=await db.from(currentTable).insert(obj);
+  }
+  if(result.error){msg(result.error.message,"error");return;}
+  msg("Record saved successfully");
+  closeEditor();
+  openTable(currentTable);
+}
+
+async function deleteRecord(index){
+  const record=records[index];
+  if(!record.id){msg("This record has no id. Cannot safely delete it.","error");return;}
+  if(!confirm("Are you sure you want to delete this record?"))return;
+  const {error}=await db.from(currentTable).delete().eq("id",record.id);
+  if(error){msg(error.message,"error");return;}
+  msg("Record deleted");
+  openTable(currentTable);
+}
+
+function escapeHtml(value){
+  return String(value).replace(/[&<>"']/g,c=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+
+// Restore session if the admin is already logged in.
+(async()=>{
+  const {data}=await db.auth.getSession();
+  if(!data.session)return;
+  const user=data.session.user;
+  const {data:admin}=await db.from("admin_users")
+    .select("user_id").eq("user_id",user.id).maybeSingle();
+  if(admin){
+    document.getElementById("loginBox").style.display="none";
+    document.getElementById("app").style.display="block";
+    buildTabs();
+    showDashboard();
+  }else{
+    await db.auth.signOut();
+  }
+})();
 </script>
 </body>
 </html>
