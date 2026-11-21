@@ -40,6 +40,10 @@ button.link{background:none;color:var(--blue);padding:5px;width:auto}
 .product-card,.data-card{background:white;border:1px solid var(--border);border-radius:15px;padding:13px;margin:11px 0;box-shadow:0 4px 15px #18345b0b;overflow-wrap:anywhere}
 .product-image{width:100%;height:190px;object-fit:cover;border-radius:11px;background:#edf2f8;display:block}
 .product-price{font-size:19px;font-weight:bold;color:#079b78}
+.order-progress{display:flex;gap:5px;margin:14px 0 4px;flex-wrap:wrap}
+.order-step{flex:1;min-width:65px;text-align:center;padding:8px 4px;border-radius:7px;background:#e8edf4;color:#718096;font-size:10px;font-weight:bold}
+.order-step.active{background:#dce8ff;color:#244da0;outline:1px solid #7da2ee}
+.order-step.done{background:#d9f5e8;color:#13734d}
 .status{display:inline-block;padding:7px 11px;border-radius:20px;background:#d1fae5;color:#047857;font-size:12px;font-weight:bold}
 .status.pending{background:#fef3c7;color:#a16207}.status.shipped{background:#dbeafe;color:#1d4ed8}
 .status.rejected,.status.cancelled,.status.insufficient{background:#fee2e2;color:#b91c1c}
@@ -439,10 +443,22 @@ function orderProfit(o){
 
 function orderStatus(o){
  const s=String(o.status||"pending").toLowerCase().trim();
- if(s==="pending"||s==="pickup")return "PICKUP";
+ if(["pending","pickup"].includes(s))return "PICKUP";
+ if(["processing","picked_up","picked up","in_progress"].includes(s))return "PROCESSING";
+ if(["shipping","shipped"].includes(s))return "SHIPPING";
  if(["completed","complete","delivered"].includes(s))return "COMPLETE";
- if(["processing","shipped","shipping","picked_up","picked up","in_progress"].includes(s))return "PROCESSING";
  return s.toUpperCase();
+}
+function orderProgress(status){
+ const current=orderStatus({status});
+ const stages=["PICKUP","PROCESSING","SHIPPING","COMPLETE"];
+ const index=stages.indexOf(current);
+ return stages.map((stage,i)=>{
+  const step=document.createElement("span");
+  step.className="order-step"+(i<index?" done":i===index?" active":"");
+  step.textContent=stage;
+  return step;
+ });
 }
 
 async function getWalletSummary(){
@@ -503,8 +519,10 @@ function makeOrderCard(o){
  const status=document.createElement("span");
  const s=String(o.status||"pending").toLowerCase().trim();
  status.className="status "+(["pending","pickup","shipped","shipping","processing","picked_up","picked up"].includes(s)?"shipped":["rejected","cancelled"].includes(s)?"rejected":"");
- status.textContent=orderStatus(o);
- card.append(title,quantity,price,profit,returned,status);
+ status.textContent="Current Status: "+orderStatus(o);
+ const progress=document.createElement("div");progress.className="order-progress";
+ orderProgress(s).forEach(step=>progress.appendChild(step));
+ card.append(title,quantity,price,profit,returned,status,progress);
  if(s==="pending"||s==="pickup"){
   const button=document.createElement("button");
   button.className="full green-btn kyc-action";button.textContent="PICKUP";
@@ -826,6 +844,10 @@ window.logout=async function(){
 db.auth.onAuthStateChange((event,session)=>{
  if(event==="PASSWORD_RECOVERY")showNewPassword();
 });
+
+setInterval(()=>{
+ if(currentUser&&$("ordersList"))loadOrders();
+},15000);
 
 (async()=>{
  try{
