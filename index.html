@@ -9,47 +9,48 @@
 <style>
 *{box-sizing:border-box}
 :root{
- --bg:#f1f5fb;--card:#fff;--navy:#17243a;--blue:#405be8;
- --green:#10b981;--purple:#8056e8;--text:#14213a;
- --muted:#718096;--border:#e3eaf4;
+ --bg:#edf3fb;--card:#fff;--navy:#14243d;--blue:#3563e9;
+ --green:#0ca678;--purple:#7956d8;--text:#172943;
+ --muted:#718096;--border:#e1e9f4;
 }
-body{margin:0;background:var(--bg);font-family:Arial,sans-serif;color:var(--text);padding-bottom:85px}
+body{margin:0;background:linear-gradient(145deg,#edf4ff,#f6f8fc 55%,#e8f4f3);font-family:Arial,sans-serif;color:var(--text);padding-bottom:85px}
 .hidden{display:none!important}
-header{height:66px;background:var(--navy);color:white;display:flex;align-items:center;justify-content:space-between;padding:0 17px;position:sticky;top:0;z-index:20}
+header{height:66px;background:linear-gradient(110deg,#14243d,#243e65);color:white;display:flex;align-items:center;justify-content:space-between;padding:0 17px;position:sticky;top:0;z-index:20;box-shadow:0 4px 15px #14243d25}
 .logo{font-size:21px;font-weight:bold;letter-spacing:.3px}
-.logo span{color:#20c6a7}
+.logo span{color:#35d6b0}
 .menu-btn{background:transparent;color:white;width:auto;margin:0;padding:8px;font-size:24px}
 main{max-width:650px;margin:auto;padding:15px}
 .welcome{display:flex;align-items:center;gap:12px;padding:14px 5px;margin-bottom:12px}
-.avatar{width:48px;height:48px;border-radius:50%;background:#dbeafe;display:grid;place-items:center;font-size:25px}
+.avatar{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#dbeafe,#d1fae5);display:grid;place-items:center;font-size:25px}
 .welcome small{color:var(--muted)}
 .welcome strong{display:block;overflow-wrap:anywhere;margin-top:4px}
-.card{background:var(--card);border:1px solid var(--border);border-radius:15px;padding:16px;margin-bottom:14px;box-shadow:0 3px 12px #15284b08}
+.card{background:var(--card);border:1px solid var(--border);border-radius:17px;padding:16px;margin-bottom:14px;box-shadow:0 5px 18px #18345b0b}
 h2{font-size:22px;margin:8px 0 5px}
 h3{font-size:17px;margin:5px 0 12px}
 p{line-height:1.45}
 .muted,.small{color:var(--muted);font-size:13px}
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.stat{background:white;border:1px solid var(--border);border-radius:14px;padding:14px;min-width:0;box-shadow:0 3px 12px #15284b08}
-.stat-icon{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-size:22px;margin-bottom:9px;background:#e0f2fe}
+.stat{background:white;border:1px solid var(--border);border-radius:16px;padding:14px;min-width:0;box-shadow:0 5px 16px #18345b0b}
+.stat-icon{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;font-size:22px;margin-bottom:9px;background:#e6efff}
 .stat strong{display:block;font-size:23px;margin:7px 0;overflow-wrap:anywhere}
 .stat .stat-label{font-size:13px;color:#53627a}
 .green{color:#059669}.purple{color:#7950dc}.blue{color:#2563eb}
 button,input,select,textarea{font-family:Arial,sans-serif;font-size:15px}
-button{border:0;border-radius:9px;padding:12px 14px;background:var(--blue);color:white;font-weight:bold;cursor:pointer}
+button{border:0;border-radius:10px;padding:12px 14px;background:linear-gradient(110deg,#3563e9,#4b75f0);color:white;font-weight:bold;cursor:pointer}
 button:disabled{opacity:.5;cursor:wait}
-input,select,textarea{width:100%;padding:13px;border:1px solid var(--border);border-radius:9px;background:#fff;color:#17243a;margin:7px 0}
+input,select,textarea{width:100%;padding:13px;border:1px solid var(--border);border-radius:10px;background:#fff;color:#17243a;margin:7px 0;outline:none}
+input:focus,select:focus,textarea:focus{border-color:#7194f4;box-shadow:0 0 0 3px #3563e915}
 textarea{min-height:95px;resize:vertical}
 button.full{width:100%;margin-top:8px}
-button.green-btn{background:var(--green)}
+button.green-btn{background:linear-gradient(110deg,#079b70,#12bd91)}
 button.gray{background:#64748b}
 button.link{background:none;color:var(--blue);padding:5px;width:auto}
 .tabs{display:flex;gap:8px;margin:12px 0}
 .tabs button{flex:1;background:#e7edf7;color:#40516b}
 .tabs button.active{background:var(--blue);color:white}
 .page-title{margin:8px 0 16px}
-.product-card,.data-card{background:white;border:1px solid var(--border);border-radius:13px;padding:13px;margin:11px 0;box-shadow:0 2px 9px #15284b08;overflow-wrap:anywhere}
-.product-image{width:100%;height:185px;object-fit:cover;border-radius:10px;background:#edf2f8;display:block}
+.product-card,.data-card{background:white;border:1px solid var(--border);border-radius:15px;padding:13px;margin:11px 0;box-shadow:0 4px 15px #18345b0b;overflow-wrap:anywhere}
+.product-image{width:100%;height:190px;object-fit:cover;border-radius:11px;background:#edf2f8;display:block}
 .product-price{font-size:19px;font-weight:bold;color:#079b78}
 .status{display:inline-block;padding:7px 11px;border-radius:20px;background:#d1fae5;color:#047857;font-size:12px;font-weight:bold}
 .status.pending{background:#fef3c7;color:#a16207}
@@ -64,7 +65,7 @@ button.link{background:none;color:var(--blue);padding:5px;width:auto}
 .score-track{height:12px;background:#e5eaf3;border-radius:20px;overflow:hidden;margin:15px 0}
 .score-fill{height:100%;background:linear-gradient(90deg,#22c55e,#eab308);border-radius:20px}
 .success-note{background:#dcfce7;color:#166534;border-radius:10px;padding:12px;font-size:13px;text-align:left}
-.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:50;background:white;border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(5,1fr);padding:7px 3px calc(7px + env(safe-area-inset-bottom));box-shadow:0 -3px 15px #15284b0b}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;z-index:50;background:white;border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(5,1fr);padding:7px 3px calc(7px + env(safe-area-inset-bottom));box-shadow:0 -4px 18px #15284b12}
 .bottom-nav button{background:transparent;color:#748198;margin:0;padding:6px 1px;border-radius:8px;font-size:11px}
 .bottom-nav button.active{color:var(--blue);background:#eef2ff}
 .bottom-nav span{display:block;font-size:21px;margin-bottom:4px}
@@ -76,11 +77,7 @@ hr{border:0;border-top:1px solid var(--border);margin:18px 0}
 .auth-wrap{max-width:430px;margin:35px auto}
 .auth-wrap .card{padding:22px}
 #profilePage{padding-bottom:20px}
-@media(min-width:600px){
- main{padding:22px}
- .stats{grid-template-columns:repeat(2,1fr)}
- .product-image{height:230px}
-}
+@media(min-width:600px){main{padding:22px}.product-image{height:230px}}
 </style>
 </head>
 <body>
@@ -366,22 +363,36 @@ window.showProductTab=function(tab){
  if(mine)loadMyProducts();else loadShop();
 };
 
-function addProductImage(container,url){
- const img=document.createElement("img");img.className="product-image";img.alt="Product picture";
+/* Product image helper: accepts a full URL or a file path in product-images bucket */
+function getProductImageUrl(value){
+ if(!value)return "";
+ const raw=String(value).trim();
+ if(/^https?:\/\//i.test(raw)||raw.startsWith("data:"))return raw;
+ const cleanPath=raw.replace(/^\/+/,"").replace(/^product-images\//,"");
+ const {data}=db.storage.from("product-images").getPublicUrl(cleanPath);
+ return data?.publicUrl||"";
+}
+function addProductImage(container,value){
+ const img=document.createElement("img");
+ img.className="product-image";
+ img.alt="Product picture";
+ const url=getProductImageUrl(value);
  img.src=url||"https://placehold.co/700x400/eaf0f8/405be8?text=Product";
- img.onerror=()=>{img.src="https://placehold.co/700x400/eaf0f8/405be8?text=Product"};
+ img.onerror=()=>{img.onerror=null;img.src="https://placehold.co/700x400/eaf0f8/405be8?text=Image+Unavailable"};
  container.appendChild(img);
 }
+
 window.loadShop=async function(){
  const box=$("shopList");box.textContent="Loading products...";
  try{
-  const {data,error}=await db.from("products").select("id,name,price,category,image_url,image").order("id",{ascending:false});
-  if(error)throw error;cachedProducts=data||[];
+  const {data,error}=await db.from("products").select("id,name,price,category,image").order("id",{ascending:false});
+  if(error)throw error;
+  cachedProducts=data||[];
   if(!data?.length){box.textContent="No products available.";return}
   box.innerHTML="";
   data.forEach(p=>{
    const card=document.createElement("div");card.className="product-card";
-   addProductImage(card,p.image_url||p.image);
+   addProductImage(card,p.image);
    const title=document.createElement("h3");title.textContent=p.name||"Product";
    const cat=document.createElement("p");cat.className="small";cat.textContent=p.category||"";
    const price=document.createElement("p");price.className="product-price";price.textContent=money(p.price);
@@ -390,12 +401,24 @@ window.loadShop=async function(){
   });
  }catch(err){box.textContent="Shop error: "+err.message}
 };
+
 async function addProduct(p){
  try{
-  const {error}=await db.from("customer_products").insert({customer_id:currentUser.id,product_id:String(p.id),product_name:p.name||"Product",price:Number(p.price||0),category:p.category||"",image_url:p.image_url||p.image||null});
-  if(error)throw error;alert("Product added successfully.");await loadMyProducts();await loadHomeData();
+  const imageValue=p.image||null;
+  const {error}=await db.from("customer_products").insert({
+   customer_id:currentUser.id,
+   product_id:String(p.id),
+   product_name:p.name||"Product",
+   price:Number(p.price||0),
+   category:p.category||"",
+   image_url:imageValue
+  });
+  if(error)throw error;
+  alert("Product added successfully.");
+  await loadMyProducts();await loadHomeData();
  }catch(err){alert("Add product error: "+err.message)}
 }
+
 window.loadMyProducts=async function(){
  const box=$("myProductsList");box.textContent="Loading...";
  try{
@@ -404,7 +427,8 @@ window.loadMyProducts=async function(){
   if(!data?.length){box.textContent="You have not added any products yet.";return}
   box.innerHTML="";
   data.forEach(p=>{
-   const card=document.createElement("div");card.className="product-card";addProductImage(card,p.image_url||p.image);
+   const card=document.createElement("div");card.className="product-card";
+   addProductImage(card,p.image||p.image_url);
    const title=document.createElement("h3");title.textContent=p.product_name||"Product";
    const cat=document.createElement("p");cat.className="small";cat.textContent=p.category||"";
    const price=document.createElement("p");price.className="product-price";price.textContent=money(p.price);
