@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -22,7 +21,7 @@ main{max-width:650px;margin:auto;padding:15px}
 h2{font-size:22px;margin:8px 0 5px}h3{font-size:17px;margin:5px 0 12px}p{line-height:1.45}
 .muted,.small{color:var(--muted);font-size:13px}
 .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.stat{background:white;border:1px solid var(--border);border-radius:16px;padding:14px;min-width:0;box-shadow:0 5px 16px #18345b0b}
+.stat{background:white;border:1px solid var(--border);border-radius:16px;padding:14px;min-width:0;box-shadow:0 5px 16px #18345b0b;margin-bottom:10px}
 .stat-icon{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;font-size:22px;margin-bottom:9px;background:#e6efff}
 .stat strong{display:block;font-size:23px;margin:7px 0;overflow-wrap:anywhere}
 .stat .stat-label{font-size:13px;color:#53627a}
@@ -144,7 +143,7 @@ hr{border:0;border-top:1px solid var(--border);margin:18px 0}
 
  <section id="walletPage" class="page hidden">
   <div class="page-title"><h2>My Wallet</h2><p class="muted">Your balance and withdrawal history.</p></div>
-  <div class="stat">Wallet Balance<strong id="walletBalance" class="green">$0.00</strong></div>
+  <div class="stat">Available Balance<strong id="walletBalance" class="green">$0.00</strong></div>
   <div class="stat">Total Profit<strong id="walletProfit" class="purple">$0.00</strong></div>
   <div class="stat">Applied Balance<strong id="walletApplied" class="blue">$0.00</strong></div>
   <p class="muted">Wallet transactions and balance adjustments are managed by Admin.</p>
@@ -311,8 +310,7 @@ function getProductImageUrl(value){
 
 function addProductImage(container,value){
  const img=document.createElement("img");
- img.className="product-image";
- img.alt="Product picture";
+ img.className="product-image";img.alt="Product picture";
  const url=getProductImageUrl(value);
  img.src=url||"https://placehold.co/700x400/eaf0f8/405be8?text=Product";
  img.onerror=()=>{img.onerror=null;img.src="https://placehold.co/700x400/eaf0f8/405be8?text=Image+Unavailable"};
@@ -341,12 +339,9 @@ window.loadShop=async function(){
 async function addProduct(p){
  try{
   const {error}=await db.from("customer_products").insert({
-   customer_id:currentUser.id,
-   product_id:String(p.id),
-   product_name:p.name||"Product",
-   price:Number(p.price||0),
-   category:p.category||"",
-   image_url:p.image||null
+   customer_id:currentUser.id,product_id:String(p.id),
+   product_name:p.name||"Product",price:Number(p.price||0),
+   category:p.category||"",image_url:p.image||null
   });
   if(error)throw error;
   alert("Product added successfully.");
@@ -371,56 +366,47 @@ window.loadMyProducts=async function(){
  }catch(err){box.textContent="Products error: "+err.message}
 };
 
-/* ORDERS: Pickup calls the secure Supabase function.
-   Supabase records the applied amount once and changes order status. */
-function orderPrice(o){return Number(o.product_price??o.total_amount??0)}
-function orderProfit(o){return Number(o.admin_profit??0)}
+/* Order price is dynamic. Profit is admin's manual value if set,
+   otherwise 20% of the actual order price. */
+function orderPrice(o){
+ return Number(o.product_price??o.total_amount??0);
+}
+function orderProfit(o){
+ const manual=Number(o.admin_profit);
+ if(Number.isFinite(manual)&&manual>0)return manual;
+ return orderPrice(o)*0.20;
+}
 function orderStatus(o){
  const s=String(o.status||"pending").toLowerCase().trim();
  if(s==="pending"||s==="pickup")return "PICKUP";
+ if(s==="completed"||s==="complete")return "COMPLETE";
  return s.toUpperCase();
 }
 
 async function pickupOrder(orderId,button,statusElement){
  if(!currentUser)return;
- button.disabled=true;
- button.textContent="Processing...";
+ button.disabled=true;button.textContent="Processing...";
  try{
-  const {data,error}=await db.rpc("customer_pickup_order",{
-   p_order_id:orderId
-  });
-
+  const {data,error}=await db.rpc("customer_pickup_order",{p_order_id:orderId});
   if(error)throw error;
-  if(!data||data.success!==true){
-   throw new Error(data?.message||"Pickup failed.");
-  }
-
+  if(!data||data.success!==true)throw new Error(data?.message||"Pickup failed.");
   statusElement.className="status shipped";
   statusElement.textContent="PROCESSING";
   button.remove();
-
-  await Promise.all([
-   loadOrders(),
-   loadWallet()
-  ]);
-
+  await Promise.all([loadOrders(),loadWallet()]);
  }catch(err){
-  button.disabled=false;
-  button.textContent="PICKUP";
+  button.disabled=false;button.textContent="PICKUP";
   alert("Pickup error: "+err.message);
  }
 }
 
 function makeOrderCard(o){
- const card=document.createElement("div");
- card.className="data-card";
-
+ const card=document.createElement("div");card.className="data-card";
  const title=document.createElement("h3");title.textContent="Order";
  const quantity=document.createElement("p");quantity.textContent="Quantity: "+safeText(o.quantity);
  const price=document.createElement("p");price.textContent="Product Price: "+money(orderPrice(o));
- const profit=document.createElement("p");profit.textContent="Profit: "+money(orderProfit(o));
+ const profit=document.createElement("p");profit.textContent="Profit (20%): "+money(orderProfit(o));
  const returned=document.createElement("p");returned.textContent="Expected Return: "+money(orderPrice(o)+orderProfit(o));
-
  const status=document.createElement("span");
  const s=String(o.status||"pending").toLowerCase().trim();
  status.className="status "+(
@@ -429,11 +415,9 @@ function makeOrderCard(o){
  );
  status.textContent=orderStatus(o);
  card.append(title,quantity,price,profit,returned,status);
-
  if(s==="pending"||s==="pickup"){
   const button=document.createElement("button");
-  button.className="full green-btn";
-  button.textContent="PICKUP";
+  button.className="full green-btn";button.textContent="PICKUP";
   button.onclick=()=>pickupOrder(o.id,button,status);
   card.appendChild(button);
  }
@@ -445,11 +429,9 @@ window.loadOrders=async function(){
  try{
   const {data,error}=await db.from("orders").select("*").eq("customer_id",currentUser.id).order("created_at",{ascending:false});
   if(error)throw error;
-  cachedOrders=data||[];
-  renderRecentOrders();
+  cachedOrders=data||[];renderRecentOrders();
   if(!data?.length){box.textContent="No orders yet.";return}
-  box.innerHTML="";
-  data.forEach(o=>box.appendChild(makeOrderCard(o)));
+  box.innerHTML="";data.forEach(o=>box.appendChild(makeOrderCard(o)));
  }catch(err){box.textContent="Orders error: "+err.message}
 };
 
@@ -470,7 +452,10 @@ function renderRecentOrders(){
  });
 }
 
-/* WALLET: Applied transactions reduce available balance and increase applied balance. */
+/* Wallet calculation:
+   purchase = applied amount, deducted from available balance.
+   refund = returned amount.
+   profit = profit credited by admin after completion. */
 window.loadWallet=async function(){
  $("walletMessage").textContent="Loading wallet...";
  try{
@@ -478,24 +463,24 @@ window.loadWallet=async function(){
    .select("amount,transaction_type,status")
    .eq("customer_id",currentUser.id);
   if(error)throw error;
-
   let available=0,profit=0,applied=0;
   (data||[]).forEach(t=>{
    const type=String(t.transaction_type||"").toLowerCase().trim();
    const status=String(t.status||"").toLowerCase().trim();
    const amount=Number(t.amount||0);
    if(!["approved","completed","success","successful","paid"].includes(status))return;
-
-   if(type==="profit")profit+=amount;
-   else if(type==="applied"){
-    applied+=amount;
+   if(type==="profit"){
+    profit+=amount;available+=amount;
+   }else if(type==="purchase"||type==="applied"){
+    applied+=amount;available-=amount;
+   }else if(type==="refund"){
+    available+=amount;
+   }else if(type==="withdrawal"||type.includes("minus")||type.includes("debit")||type.includes("payment")){
     available-=amount;
+   }else if(type.includes("add_balance")||type==="credit"||type==="deposit"||type==="income"){
+    available+=amount;
    }
-   else if(type==="refund")available+=amount;
-   else if(type==="withdrawal"||type.includes("minus")||type.includes("debit")||type.includes("payment")||type.includes("purchase"))available-=amount;
-   else if(type.includes("add_balance")||type==="credit"||type==="deposit"||type==="income")available+=amount;
   });
-
   $("walletBalance").textContent=money(available);
   $("walletProfit").textContent=money(profit);
   $("walletApplied").textContent=money(applied);
@@ -516,40 +501,36 @@ window.resetWithdrawScreen=function(){
 window.openWithdrawOptions=function(){
  $("withdrawOpenButton").classList.add("hidden");
  $("withdrawOptions").classList.remove("hidden");
- $("usdtForm").classList.add("hidden");
- $("bankForm").classList.add("hidden");
+ $("usdtForm").classList.add("hidden");$("bankForm").classList.add("hidden");
 };
 window.showWithdraw=function(method){
- $("withdrawOptions").classList.add("hidden");
- $("withdrawOpenButton").classList.add("hidden");
+ $("withdrawOptions").classList.add("hidden");$("withdrawOpenButton").classList.add("hidden");
  $("usdtForm").classList.toggle("hidden",method!=="usdt");
  $("bankForm").classList.toggle("hidden",method!=="bank");
 };
 window.backToMethods=function(){
- $("usdtForm").classList.add("hidden");
- $("bankForm").classList.add("hidden");
+ $("usdtForm").classList.add("hidden");$("bankForm").classList.add("hidden");
  $("withdrawOptions").classList.remove("hidden");
 };
 
-/* Supabase trigger handles withdrawal deduction and rejected-request refund. */
+/* Existing Supabase withdrawal trigger is expected to deduct on insert
+   and refund automatically when Admin rejects. Do not add a second deduction here. */
 async function submitWithdrawal(method,amount,details,formId,buttonId){
- $(buttonId).disabled=true;
- $("withdrawMessage").textContent="Submitting request...";
+ $(buttonId).disabled=true;$("withdrawMessage").textContent="Submitting request...";
  try{
+  await loadWallet();
+  const shownBalance=Number($("walletBalance").textContent.replace("$",""));
+  if(!Number.isFinite(shownBalance)||amount>shownBalance){
+   throw new Error("Insufficient available balance.");
+  }
   const {error}=await db.from("withdrawals").insert({
-   customer_id:currentUser.id,
-   amount,
-   method,
-   account_details:JSON.stringify(details),
-   status:"Pending"
+   customer_id:currentUser.id,amount,method,
+   account_details:JSON.stringify(details),status:"Pending"
   });
   if(error)throw error;
-
   $(formId).reset();
-  $("withdrawMessage").textContent="Withdrawal submitted. Amount deducted from wallet. Status: Pending.";
-  await loadWithdrawals();
-  await loadWallet();
-  resetWithdrawScreen();
+  $("withdrawMessage").textContent="Withdrawal submitted. Status: Pending.";
+  await loadWithdrawals();await loadWallet();resetWithdrawScreen();
  }catch(err){
   $("withdrawMessage").textContent="Withdrawal error: "+err.message;
  }
@@ -558,11 +539,9 @@ async function submitWithdrawal(method,amount,details,formId,buttonId){
 
 $("usdtForm").addEventListener("submit",async e=>{
  e.preventDefault();
- const amount=Number($("usdtAmount").value);
- const address=$("usdtAddress").value.trim();
+ const amount=Number($("usdtAmount").value),address=$("usdtAddress").value.trim();
  if(!address||!Number.isFinite(amount)||amount<=0){
-  $("withdrawMessage").textContent="Enter a valid USDT address and amount.";
-  return;
+  $("withdrawMessage").textContent="Enter a valid USDT address and amount.";return;
  }
  await submitWithdrawal("USDT",amount,{usdt_address:address},"usdtForm","usdtSubmit");
 });
@@ -577,8 +556,7 @@ $("bankForm").addEventListener("submit",async e=>{
   account_number:$("bankAccountNumber").value.trim()
  };
  if(!details.account_name||!details.bank_name||!details.iban||!details.account_number||!Number.isFinite(amount)||amount<=0){
-  $("withdrawMessage").textContent="Complete all bank details and enter a valid amount.";
-  return;
+  $("withdrawMessage").textContent="Complete all bank details and enter a valid amount.";return;
  }
  await submitWithdrawal("Bank Account",amount,details,"bankForm","bankSubmit");
 });
@@ -594,7 +572,11 @@ window.loadWithdrawals=async function(){
    const card=document.createElement("div");card.className="data-card";
    const method=document.createElement("strong");method.textContent=w.method||"Withdrawal";
    const amount=document.createElement("p");amount.textContent="Amount: "+money(w.amount);
-   const status=document.createElement("p");status.textContent="Status: "+(w.status||"Pending");
+   const raw=String(w.status||"Pending");
+   const normalized=raw.toLowerCase();
+   const shown=normalized==="approved"||normalized==="complete"||normalized==="completed"?"WITHDRAW COMPLETE":
+    normalized==="rejected"?"REJECTED - REFUNDED":raw.toUpperCase();
+   const status=document.createElement("p");status.textContent="Status: "+shown;
    const note=document.createElement("p");note.className="small";note.textContent=w.admin_note?"Admin note: "+w.admin_note:"";
    card.append(method,amount,status,note);box.appendChild(card);
   });
@@ -629,8 +611,7 @@ async function loadHomeData(){
    db.from("orders").select("*").eq("customer_id",currentUser.id).order("created_at",{ascending:false}),
    db.from("customer_products").select("id").eq("customer_id",currentUser.id)
   ]);
-  if(orders.error)throw orders.error;
-  if(products.error)throw products.error;
+  if(orders.error)throw orders.error;if(products.error)throw products.error;
   cachedOrders=orders.data||[];
   $("homeOrders").textContent=cachedOrders.length;
   $("homeProducts").textContent=(products.data||[]).length;
@@ -662,9 +643,7 @@ async function loadKyc(user){
 }
 
 $("kycForm").addEventListener("submit",async e=>{
- e.preventDefault();
- $("kycButton").disabled=true;
- $("kycStatus").textContent="Uploading document...";
+ e.preventDefault();$("kycButton").disabled=true;$("kycStatus").textContent="Uploading document...";
  try{
   const file=$("kycFile").files[0],type=$("documentType").value;
   if(!file||!type)throw new Error("Select a document and file.");
@@ -674,14 +653,10 @@ $("kycForm").addEventListener("submit",async e=>{
   const {error:uploadError}=await db.storage.from("kyc-documents").upload(path,file);
   if(uploadError)throw uploadError;
   const {error}=await db.from("kyc_submissions").insert({
-   customer_id:currentUser.id,
-   document_type:type,
-   document_url:path,
-   status:"Pending"
+   customer_id:currentUser.id,document_type:type,document_url:path,status:"Pending"
   });
   if(error)throw error;
-  $("kycForm").reset();
-  await loadKyc(currentUser);
+  $("kycForm").reset();await loadKyc(currentUser);
   $("kycStatus").textContent="KYC submitted successfully.";
  }catch(err){$("kycStatus").textContent="KYC error: "+err.message}
  $("kycButton").disabled=false;
@@ -707,8 +682,7 @@ window.loadSupport=async function(){
     reply.append(admin,replyText);box.appendChild(reply);
    }else{
     const waiting=document.createElement("p");waiting.className="small";
-    waiting.textContent="Waiting for Customer Service reply.";
-    box.appendChild(waiting);
+    waiting.textContent="Waiting for Customer Service reply.";box.appendChild(waiting);
    }
   });
  }catch(err){box.textContent="Customer Service error: "+err.message}
@@ -716,15 +690,12 @@ window.loadSupport=async function(){
 
 $("supportForm").addEventListener("submit",async e=>{
  e.preventDefault();
- const message=$("supportInput").value.trim();
- if(!message)return;
- $("supportButton").disabled=true;
- $("supportMessage").textContent="Sending message...";
+ const message=$("supportInput").value.trim();if(!message)return;
+ $("supportButton").disabled=true;$("supportMessage").textContent="Sending message...";
  try{
   const {error}=await db.from("support_messages").insert({customer_id:currentUser.id,message,status:"open"});
   if(error)throw error;
-  $("supportInput").value="";
-  $("supportMessage").textContent="Message sent to Customer Service.";
+  $("supportInput").value="";$("supportMessage").textContent="Message sent to Customer Service.";
   await loadSupport();
  }catch(err){$("supportMessage").textContent="Message error: "+err.message}
  $("supportButton").disabled=false;
@@ -734,11 +705,8 @@ window.logout=async function(){
  const {error}=await db.auth.signOut();
  if(error){msg("Logout error: "+error.message);return}
  currentUser=null;
- $("dashboard").classList.add("hidden");
- $("bottomNav").classList.add("hidden");
- $("authArea").classList.remove("hidden");
- $("loginForm").reset();
- showLogin();
+ $("dashboard").classList.add("hidden");$("bottomNav").classList.add("hidden");
+ $("authArea").classList.remove("hidden");$("loginForm").reset();showLogin();
 };
 
 db.auth.onAuthStateChange((event,session)=>{
