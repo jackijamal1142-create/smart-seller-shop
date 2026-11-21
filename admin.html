@@ -7,11 +7,13 @@
 <title>Smart Seller Admin</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#f2f5fa;color:#202b40;font-family:Arial}
+*{box-sizing:border-box}
+body{margin:0;background:#f2f5fa;color:#202b40;font-family:Arial}
 header{height:60px;background:#17243b;color:white;padding:12px 18px;display:flex;justify-content:space-between;align-items:center}
 header b{color:#7ee6d2;font-size:19px}
 button{border:0;border-radius:7px;padding:9px 13px;margin:3px;background:#6256cf;color:white;cursor:pointer}
-button.green{background:#159b79}button.red{background:#d94b5c}button.gray{background:#65738a}
+button:disabled{opacity:.5;cursor:wait}
+.green{background:#159b79}.red{background:#d94b5c}.gray{background:#65738a}
 input,select,textarea{width:100%;padding:10px;border:1px solid #d5dce8;border-radius:7px;margin:6px 0 12px;font:inherit}
 label{font-size:13px;font-weight:bold}
 #layout{display:none;min-height:calc(100vh - 60px)}
@@ -22,26 +24,45 @@ main{padding:20px;flex:1;min-width:0}
 .panel,.stat{background:white;padding:16px;border-radius:11px;margin-bottom:14px;box-shadow:0 2px 9px #17243b0c}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
 .stat strong{display:block;font-size:26px;color:#6256cf;margin-top:7px}
-.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:13px;min-width:550px}
+.tablewrap{overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:550px}
 td,th{text-align:left;padding:10px;border-bottom:1px solid #e6eaf0;vertical-align:top}
-th{background:#f4f6fb}.muted{font-size:12px;color:#77849a}
+th{background:#f4f6fb}
+.muted{font-size:12px;color:#77849a}
 .login{max-width:390px;margin:70px auto;background:white;padding:25px;border-radius:13px}
-#notice{font-weight:bold;margin-bottom:12px}.error{color:#d33}.ok{color:#14866b}
+#notice{font-weight:bold;margin-bottom:12px}
+.error{color:#d33}.ok{color:#14866b}
 .customer{padding:12px;border:1px solid #e1e6ef;border-radius:8px;margin:7px 0;cursor:pointer}
 .customer:hover{background:#f3f5ff}
 img.product{width:55px;height:55px;object-fit:cover;border-radius:7px}
 #toggle{display:none}
-@media(max-width:760px){#layout{flex-direction:column}aside{width:100%;display:none}aside.open{display:block}#toggle{display:inline-block}main{padding:12px}}
+@media(max-width:760px){
+#layout{flex-direction:column}
+aside{width:100%;display:none}
+aside.open{display:block}
+#toggle{display:inline-block}
+main{padding:12px}
+}
 </style>
 </head>
 <body>
-<header><b>SMART SELLER ADMIN</b><div><button id="toggle" onclick="document.querySelector('aside').classList.toggle('open')">☰</button><button class="red" onclick="logout()">Logout</button></div></header>
+
+<header>
+<b>SMART SELLER ADMIN</b>
+<div>
+<button id="toggle" onclick="document.querySelector('aside').classList.toggle('open')">☰</button>
+<button class="red" onclick="logout()">Logout</button>
+</div>
+</header>
 
 <div id="login" class="login">
 <h2>Admin Login</h2>
-<label>Email</label><input id="email" type="email" value="jackijamal1142@gmail.com">
-<label>Password</label><input id="password" type="password" placeholder="Your password">
-<button class="green" onclick="login()">Login</button><p id="loginError" class="error"></p>
+<label>Email</label>
+<input id="email" type="email" value="jackijamal1142@gmail.com">
+<label>Password</label>
+<input id="password" type="password" placeholder="Your password">
+<button class="green" id="loginButton" onclick="login()">Login</button>
+<p id="loginError" class="error"></p>
 </div>
 
 <div id="layout">
@@ -62,332 +83,618 @@ img.product{width:55px;height:55px;object-fit:cover;border-radius:7px}
 <button onclick="go('credit_score_history',this)">◷ Credit Score History</button>
 <button onclick="go('product_requests',this)">☷ Product Requests</button>
 </aside>
-<main><div id="notice"></div><div id="content"></div></main>
+<main>
+<div id="notice"></div>
+<div id="content"></div>
+</main>
 </div>
 
 <script>
-const URL="https://biiagnjcyzvqbezabpxz.supabase.co";
-const KEY="sb_publishable_QrBZWYfua111aN24MjlXHw_c-Cf5yB1";
-const db=window.supabase.createClient(URL,KEY);
-let customers=[],products=[],records=[],current="dashboard";
+/* SUPABASE CONNECTION */
+const SUPABASE_URL = "https://biiagnjcyzvqbezabpxz.supabase.co";
+const SUPABASE_KEY = "sb_publishable_QrBZWYfua111aN24MjlXHw_c-Cf5yB1";
 
-const names={
-profiles:"Customers",products:"Products",customer_products:"Customer Products",
-orders:"Orders",order_items:"Order Items",wallet_transactions:"Wallet",
-withdrawals:"Withdrawals",kyc_submissions:"KYC",support_messages:"Customer Service",
-payment_accounts:"Payment Accounts",payment_submissions:"Payment Submissions",
-notifications:"Notifications",credit_score_history:"Credit Score History",
+let db = null;
+let customers = [];
+let products = [];
+let records = [];
+let current = "dashboard";
+
+const names = {
+profiles:"Customers",
+products:"Products",
+customer_products:"Customer Products",
+orders:"Orders",
+order_items:"Order Items",
+wallet_transactions:"Wallet",
+withdrawals:"Withdrawals",
+kyc_submissions:"KYC",
+support_messages:"Customer Service",
+payment_accounts:"Payment Accounts",
+payment_submissions:"Payment Submissions",
+notifications:"Notifications",
+credit_score_history:"Credit Score History",
 product_requests:"Product Requests"
 };
-function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function note(t,bad=false){let n=document.getElementById("notice");n.textContent=t;n.className=bad?"error":"ok"}
-function val(id){return document.getElementById(id)?.value?.trim()||""}
 
-async function login(){
- let {data,error}=await db.auth.signInWithPassword({email:val("email"),password:document.getElementById("password").value});
- if(error){document.getElementById("loginError").textContent=error.message;return}
- let a=await db.from("admin_users").select("user_id").eq("user_id",data.user.id).maybeSingle();
- if(a.error||!a.data){await db.auth.signOut();document.getElementById("loginError").textContent="Admin access nahi hai.";return}
- start();
+/* START CONNECTION SAFELY */
+try {
+ if (!window.supabase) {
+  throw new Error("Supabase library load nahi hui. Internet check karein.");
+ }
+ if (!SUPABASE_URL.startsWith("https://") || !SUPABASE_URL.includes(".supabase.co")) {
+  throw new Error("Supabase URL ghalat hai.");
+ }
+ db = window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+} catch(e) {
+ document.getElementById("loginError").textContent = e.message;
 }
-async function logout(){await db.auth.signOut();location.reload()}
+
+function val(id){
+ return document.getElementById(id)?.value?.trim() || "";
+}
+function esc(v){
+ return String(v??"").replace(/[&<>"']/g,c=>({
+ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+ }[c]));
+}
+function note(t,bad=false){
+ const n=document.getElementById("notice");
+ n.textContent=t;
+ n.className=bad?"error":"ok";
+}
+function showLoginError(t){
+ document.getElementById("loginError").textContent=t;
+}
+
+/* LOGIN */
+async function login(){
+ if(!db)return showLoginError("Supabase connection nahi bani. URL aur key check karein.");
+
+ const button=document.getElementById("loginButton");
+ button.disabled=true;
+ showLoginError("");
+
+ try {
+  const {data,error}=await db.auth.signInWithPassword({
+   email:val("email"),
+   password:document.getElementById("password").value
+  });
+
+  if(error)throw error;
+  if(!data.user)throw new Error("Login user nahi mila.");
+
+  const a=await db.from("admin_users")
+   .select("user_id")
+   .eq("user_id",data.user.id)
+   .maybeSingle();
+
+  if(a.error)throw a.error;
+
+  if(!a.data){
+   await db.auth.signOut();
+   throw new Error("Admin access nahi hai. Admin email ki database entry check karein.");
+  }
+
+  await start();
+ } catch(e) {
+  showLoginError(e.message || "Login failed.");
+ } finally {
+  button.disabled=false;
+ }
+}
+
+async function logout(){
+ if(db)await db.auth.signOut();
+ location.reload();
+}
+
 async function start(){
  document.getElementById("login").style.display="none";
  document.getElementById("layout").style.display="flex";
  await go("dashboard",document.querySelector("aside button"));
 }
+
 async function check(){
- let s=await db.auth.getSession();
- if(!s.data.session)return;
- let a=await db.from("admin_users").select("user_id").eq("user_id",s.data.session.user.id).maybeSingle();
- if(a.data)start();else await db.auth.signOut();
+ if(!db)return;
+ try {
+  const s=await db.auth.getSession();
+  if(!s.data.session)return;
+
+  const a=await db.from("admin_users")
+   .select("user_id")
+   .eq("user_id",s.data.session.user.id)
+   .maybeSingle();
+
+  if(a.data)await start();
+  else await db.auth.signOut();
+ } catch(e) {
+  showLoginError(e.message);
+ }
 }
+
+/* NAVIGATION */
 async function go(page,btn){
  current=page;
  document.querySelectorAll("aside button").forEach(x=>x.classList.remove("active"));
  if(btn)btn.classList.add("active");
  document.querySelector("aside").classList.remove("open");
  note("");
- if(page==="dashboard")return dashboard();
- if(page==="profiles")return customerPage();
- if(page==="products")return productPage();
- if(page==="customer_products")return customerProductsPage();
- if(page==="orders")return ordersPage();
- if(page==="wallet_transactions")return walletPage();
- if(page==="withdrawals")return withdrawalsPage();
- if(page==="kyc_submissions")return kycPage();
- if(page==="support_messages")return supportPage();
- return genericPage(page);
-}
-async function loadCustomers(){
- let r=await db.from("profiles").select("*").limit(500);
- if(r.error)throw r.error;customers=r.data||[];
-}
-async function loadProducts(){
- let r=await db.from("products").select("*").limit(500);
- if(r.error)throw r.error;products=r.data||[];
-}
-function customerName(id){
- let c=customers.find(x=>x.id===id);
- return c?(c.full_name||c.email||c.id):id;
+
+ try {
+  if(page==="dashboard")return await dashboard();
+  if(page==="profiles")return await customerPage();
+  if(page==="products")return await productPage();
+  if(page==="customer_products")return await customerProductsPage();
+  if(page==="orders")return await ordersPage();
+  if(page==="wallet_transactions")return await walletPage();
+  if(page==="withdrawals")return await withdrawalsPage();
+  if(page==="kyc_submissions")return await kycPage();
+  if(page==="support_messages")return await supportPage();
+  return await genericPage(page);
+ } catch(e) {
+  note(e.message,true);
+ }
 }
 
+/* COMMON DATA */
+async function loadCustomers(){
+ const r=await db.from("profiles").select("*").limit(500);
+ if(r.error)throw r.error;
+ customers=r.data||[];
+}
+async function loadProducts(){
+ const r=await db.from("products").select("*").limit(500);
+ if(r.error)throw r.error;
+ products=r.data||[];
+}
+function customerName(id){
+ const c=customers.find(x=>x.id===id);
+ return c?(c.full_name||c.email||c.id):id;
+}
+function customerNameFromLoaded(id){
+ return customerName(id);
+}
+function renderSimple(data){
+ if(!data.length)return "No records found";
+ const keys=Object.keys(data[0]);
+ return "<div class='tablewrap'><table><tr>"+
+ keys.map(k=>"<th>"+esc(k)+"</th>").join("")+"</tr>"+
+ data.map(x=>"<tr>"+keys.map(k=>"<td>"+esc(typeof x[k]==="object"?JSON.stringify(x[k]):x[k])+"</td>").join("")+"</tr>").join("")+
+ "</table></div>";
+}
+
+/* DASHBOARD */
 async function dashboard(){
  let html="<h2>Dashboard</h2><div class='cards'>";
- for(let [t,n] of [["profiles","Customers"],["products","Products"],["orders","Orders"],["withdrawals","Withdrawals"],["kyc_submissions","KYC Requests"],["support_messages","Messages"]]){
-  let r=await db.from(t).select("*",{count:"exact",head:true});
+ for(const [t,n] of [
+  ["profiles","Customers"],["products","Products"],["orders","Orders"],
+  ["withdrawals","Withdrawals"],["kyc_submissions","KYC Requests"],
+  ["support_messages","Messages"]
+ ]) {
+  const r=await db.from(t).select("*",{count:"exact",head:true});
   html+=`<div class="stat">${n}<strong>${r.error?"Error":r.count??0}</strong></div>`;
  }
  document.getElementById("content").innerHTML=html+"</div>";
 }
 
+/* CUSTOMERS */
 async function customerPage(){
- let r=await db.from("profiles").select("*").order("created_at",{ascending:false}).limit(500);
- if(r.error){note(r.error.message,true);return}
+ const r=await db.from("profiles").select("*").order("created_at",{ascending:false}).limit(500);
+ if(r.error)throw r.error;
  customers=r.data||[];
- document.getElementById("content").innerHTML="<h2>Customers</h2><div class='panel'><input id='customerSearch' placeholder='Search customer name or Gmail' oninput='filterCustomers()'><div id='customerList'></div></div>";
+
+ document.getElementById("content").innerHTML=`
+ <h2>Customers</h2>
+ <div class="panel">
+ <input id="customerSearch" placeholder="Search customer name or Gmail" oninput="filterCustomers()">
+ <div id="customerList"></div>
+ </div>`;
  renderCustomers(customers);
 }
 function renderCustomers(list){
  document.getElementById("customerList").innerHTML=list.map(c=>`
  <div class="customer" onclick="customerDetail('${esc(c.id)}')">
- <b>${esc(c.full_name||"Customer")}</b><br>${esc(c.email||"Email not available")}<br>
+ <b>${esc(c.full_name||"Customer")}</b><br>
+ ${esc(c.email||"Email not available")}<br>
  <span class="muted">Phone: ${esc(c.phone||"-")} | Credit score: ${esc(c.credit_score??"-")}</span>
  </div>`).join("")||"No customers found";
 }
 function filterCustomers(){
- let q=val("customerSearch").toLowerCase();
- renderCustomers(customers.filter(c=>(c.full_name+" "+c.email+" "+c.phone).toLowerCase().includes(q)));
+ const q=val("customerSearch").toLowerCase();
+ renderCustomers(customers.filter(c=>
+  (String(c.full_name||"")+" "+String(c.email||"")+" "+String(c.phone||"")).toLowerCase().includes(q)
+ ));
 }
 async function customerDetail(id){
- let c=customers.find(x=>x.id===id);if(!c)return;
- let r=await db.from("customer_products").select("*").eq("customer_id",id);
+ const c=customers.find(x=>x.id===id);
+ if(!c)return;
+ const r=await db.from("customer_products").select("*").eq("customer_id",id);
  document.getElementById("content").innerHTML=`
  <button class="gray" onclick="customerPage()">← Customers</button>
- <div class="panel"><h2>${esc(c.full_name||"Customer")}</h2>
- Gmail: ${esc(c.email||"Email not available")}<br>Phone: ${esc(c.phone||"-")}<br>
- Credit Score: ${esc(c.credit_score??"-")}</div>
- <div class="panel"><h3>Customer Products</h3>${r.error?esc(r.error.message):renderSimple(r.data||[])}</div>`;
-}
-function renderSimple(data){
- if(!data.length)return"No products found";
- return "<div class='tablewrap'><table><tr>"+Object.keys(data[0]).map(k=>"<th>"+esc(k)+"</th>").join("")+"</tr>"+
- data.map(x=>"<tr>"+Object.values(x).map(v=>"<td>"+esc(v)+"</td>").join("")+"</tr>").join("")+"</table></div>";
+ <div class="panel">
+ <h2>${esc(c.full_name||"Customer")}</h2>
+ Gmail: ${esc(c.email||"Email not available")}<br>
+ Phone: ${esc(c.phone||"-")}<br>
+ Credit Score: ${esc(c.credit_score??"-")}
+ </div>
+ <div class="panel"><h3>Customer Products</h3>
+ ${r.error?esc(r.error.message):renderSimple(r.data||[])}
+ </div>`;
 }
 
+/* PRODUCTS */
 async function productPage(){
- await loadProducts().catch(e=>note(e.message,true));
+ await loadProducts();
  document.getElementById("content").innerHTML=`
- <h2>Products</h2><div class="panel"><h3>Create Product</h3>
+ <h2>Products</h2>
+ <div class="panel">
+ <h3>Create Product</h3>
  <label>Product Name</label><input id="pname">
  <label>Price</label><input id="pprice" type="number" step="0.01">
  <label>Category</label><input id="pcat">
  <label>Product Picture URL</label><input id="pimage" placeholder="Paste image URL">
- <button class="green" onclick="addProduct()">Add Product</button></div>
+ <button class="green" onclick="addProduct()">Add Product</button>
+ </div>
  <div class="panel"><h3>All Products</h3><div id="productList"></div></div>`;
  renderProducts();
 }
 function renderProducts(){
- document.getElementById("productList").innerHTML="<div class='tablewrap'><table><tr><th>Picture</th><th>Name</th><th>Price</th><th>Category</th><th>Actions</th></tr>"+
- products.map(p=>`<tr><td>${p.image_url?`<img class="product" src="${esc(p.image_url)}">`:"-"}</td><td>${esc(p.name)}</td><td>${esc(p.price)}</td><td>${esc(p.category)}</td><td><button onclick="editProduct('${esc(p.id)}')">Edit</button><button class="red" onclick="deleteProduct('${esc(p.id)}')">Delete</button></td></tr>`).join("")+"</table></div>";
+ document.getElementById("productList").innerHTML=
+ "<div class='tablewrap'><table><tr><th>Picture</th><th>Name</th><th>Price</th><th>Category</th><th>Actions</th></tr>"+
+ products.map(p=>`<tr>
+ <td>${p.image_url?`<img class="product" src="${esc(p.image_url)}">`:"-"}</td>
+ <td>${esc(p.name)}</td><td>${esc(p.price)}</td><td>${esc(p.category)}</td>
+ <td><button onclick="editProduct('${esc(p.id)}')">Edit</button>
+ <button class="red" onclick="deleteProduct('${esc(p.id)}')">Delete</button></td>
+ </tr>`).join("")+"</table></div>";
 }
 async function addProduct(){
- let name=val("pname"),price=Number(val("pprice"));
+ const name=val("pname"),price=Number(val("pprice"));
  if(!name||!val("pprice"))return note("Name aur price likhein",true);
- let {error}=await db.from("products").insert({name,price,category:val("pcat"),image_url:val("pimage")});
+ const {error}=await db.from("products").insert({
+  name,price,category:val("pcat"),image_url:val("pimage")||null
+ });
  if(error)return note(error.message,true);
- note("Product added");productPage();
+ note("Product added");
+ await productPage();
 }
 async function editProduct(id){
- let p=products.find(x=>String(x.id)===id);if(!p)return;
- let name=prompt("Product name",p.name);if(name===null)return;
- let price=prompt("Price",p.price);if(price===null)return;
- let category=prompt("Category",p.category||"");if(category===null)return;
- let image_url=prompt("Picture URL",p.image_url||"");if(image_url===null)return;
- let {error}=await db.from("products").update({name,price:Number(price),category,image_url}).eq("id",id);
- if(error)return note(error.message,true);note("Product updated");productPage();
+ const p=products.find(x=>String(x.id)===id);
+ if(!p)return;
+ const name=prompt("Product name",p.name);
+ if(name===null)return;
+ const price=prompt("Price",p.price);
+ if(price===null)return;
+ const category=prompt("Category",p.category||"");
+ if(category===null)return;
+ const image_url=prompt("Picture URL",p.image_url||"");
+ if(image_url===null)return;
+ const {error}=await db.from("products").update({
+  name,price:Number(price),category,image_url
+ }).eq("id",id);
+ if(error)return note(error.message,true);
+ note("Product updated");
+ await productPage();
 }
 async function deleteProduct(id){
  if(!confirm("Delete this product?"))return;
- let {error}=await db.from("products").delete().eq("id",id);
- if(error)return note(error.message,true);note("Product deleted");productPage();
+ const {error}=await db.from("products").delete().eq("id",id);
+ if(error)return note(error.message,true);
+ note("Product deleted");
+ await productPage();
 }
 
+/* CUSTOMER PRODUCTS */
 async function customerProductsPage(){
  await loadCustomers();
- let r=await db.from("customer_products").select("*").limit(1000);
- if(r.error)return note(r.error.message,true);
- let groups={};
+ const r=await db.from("customer_products").select("*").limit(1000);
+ if(r.error)throw r.error;
+
+ const groups={};
  (r.data||[]).forEach(p=>(groups[p.customer_id]??=[]).push(p));
- document.getElementById("content").innerHTML="<h2>Customer Products</h2><div class='panel' id='customerProductList'></div>";
- document.getElementById("customerProductList").innerHTML=Object.keys(groups).map(id=>`
- <div class="customer" onclick="showCustomerProducts('${esc(id)}')">
- <b>${esc(customerName(id))}</b><br><span class="muted">${groups[id].length} selected products</span>
- </div>`).join("")||"No customer products";
+
  window.customerProductGroups=groups;
+ document.getElementById("content").innerHTML=
+ "<h2>Customer Products</h2><div class='panel' id='customerProductList'></div>";
+
+ document.getElementById("customerProductList").innerHTML=
+ Object.keys(groups).map(id=>`
+ <div class="customer" onclick="showCustomerProducts('${esc(id)}')">
+ <b>${esc(customerName(id))}</b><br>
+ <span class="muted">${groups[id].length} selected products</span>
+ </div>`).join("")||"No customer products";
 }
 function showCustomerProducts(id){
- let items=window.customerProductGroups[id]||[];
- document.getElementById("content").innerHTML=`<button class="gray" onclick="customerProductsPage()">← Back</button><h2>${esc(customerName(id))}</h2><div class="panel">${renderSimple(items)}</div>`;
+ const items=window.customerProductGroups[id]||[];
+ document.getElementById("content").innerHTML=`
+ <button class="gray" onclick="customerProductsPage()">← Back</button>
+ <h2>${esc(customerName(id))}</h2>
+ <div class="panel">${renderSimple(items)}</div>`;
 }
 
+/* ORDERS */
 async function ordersPage(){
  await Promise.all([loadCustomers(),loadProducts()]);
  document.getElementById("content").innerHTML=`
- <h2>Orders</h2><div class="panel"><h3>Send Order to Customer</h3>
- <label>Customer</label><select id="ocustomer"><option value="">Select customer</option>${customers.map(c=>`<option value="${esc(c.id)}">${esc(c.full_name||c.email||c.id)} — ${esc(c.email||"")}</option>`).join("")}</select>
- <label>Product</label><select id="oproduct" onchange="calcOrder()"><option value="">Select product</option>${products.map(p=>`<option value="${esc(p.id)}">${esc(p.name)} — ${esc(p.price)}</option>`).join("")}</select>
+ <h2>Orders</h2>
+ <div class="panel">
+ <h3>Send Order to Customer</h3>
+ <label>Customer</label>
+ <select id="ocustomer">
+ <option value="">Select customer</option>
+ ${customers.map(c=>`<option value="${esc(c.id)}">${esc(c.full_name||c.email||c.id)} — ${esc(c.email||"")}</option>`).join("")}
+ </select>
+ <label>Product</label>
+ <select id="oproduct" onchange="calcOrder()">
+ <option value="">Select product</option>
+ ${products.map(p=>`<option value="${esc(p.id)}">${esc(p.name)} — ${esc(p.price)}</option>`).join("")}
+ </select>
  <label>Quantity</label><input id="oqty" type="number" min="1" value="1" oninput="calcOrder()">
  <label>Admin Profit</label><input id="oprofit" type="number" min="0" value="0" step="0.01">
- <p id="ototal">Total: 0</p><button class="green" onclick="sendOrder()">SEND ORDER</button></div>
- <div class="panel"><h3>Orders List</h3><button class="gray" onclick="loadOrders()">Refresh</button><div id="orderList"></div></div>`;
+ <p id="ototal">Total: 0</p>
+ <button class="green" onclick="sendOrder()">SEND ORDER</button>
+ </div>
+ <div class="panel">
+ <h3>Orders List</h3>
+ <button class="gray" onclick="loadOrders()">Refresh</button>
+ <div id="orderList"></div>
+ </div>`;
  await loadOrders();
 }
 function calcOrder(){
- let p=products.find(x=>String(x.id)===val("oproduct"));
- document.getElementById("ototal").textContent="Total: "+(Number(p?.price||0)*Number(val("oqty")||1)).toFixed(2);
+ const p=products.find(x=>String(x.id)===val("oproduct"));
+ document.getElementById("ototal").textContent=
+ "Total: "+(Number(p?.price||0)*Number(val("oqty")||1)).toFixed(2);
 }
 async function sendOrder(){
- let cid=val("ocustomer"),pid=val("oproduct"),qty=Number(val("oqty"));
- let p=products.find(x=>String(x.id)===pid);
- if(!cid||!p||!Number.isInteger(qty)||qty<1)return note("Customer, product aur quantity select karein",true);
- let total=Number(p.price)*qty;
- let b=document.querySelector("#content button.green");b.disabled=true;
- let o=await db.from("orders").insert({customer_id:cid,status:"pending",total_amount:total,admin_profit:Number(val("oprofit")||0)}).select("id").single();
- if(o.error){b.disabled=false;return note(o.error.message,true)}
- let it=await db.from("order_items").insert({order_id:o.data.id,product_id:p.id,product_name:p.name,quantity:qty,unit_price:Number(p.price)});
- if(it.error){
-  await db.from("orders").delete().eq("id",o.data.id);
-  b.disabled=false;return note("Order item error: "+it.error.message,true);
+ const cid=val("ocustomer"),pid=val("oproduct"),qty=Number(val("oqty"));
+ const p=products.find(x=>String(x.id)===pid);
+ if(!cid||!p||!Number.isInteger(qty)||qty<1)
+  return note("Customer, product aur quantity select karein",true);
+
+ const total=Number(p.price)*qty;
+ const b=document.querySelector("#content button.green");
+ b.disabled=true;
+
+ try {
+  const o=await db.from("orders").insert({
+   customer_id:cid,status:"pending",total_amount:total,
+   admin_profit:Number(val("oprofit")||0)
+  }).select("id").single();
+
+  if(o.error)throw o.error;
+
+  const it=await db.from("order_items").insert({
+   order_id:o.data.id,product_id:p.id,product_name:p.name,
+   quantity:qty,unit_price:Number(p.price)
+  });
+
+  if(it.error){
+   await db.from("orders").delete().eq("id",o.data.id);
+   throw it.error;
+  }
+
+  note("Order customer ko send ho gaya");
+  await loadOrders();
+ } catch(e) {
+  note(e.message,true);
+ } finally {
+  b.disabled=false;
  }
- note("Order customer ko send ho gaya");b.disabled=false;loadOrders();
 }
 async function loadOrders(){
- let r=await db.from("orders").select("*").order("created_at",{ascending:false}).limit(300);
+ const r=await db.from("orders").select("*").order("created_at",{ascending:false}).limit(300);
  if(r.error)return note(r.error.message,true);
  document.getElementById("orderList").innerHTML=renderSimple(r.data||[]);
 }
 
+/* WALLET */
 async function walletPage(){
  await loadCustomers();
  document.getElementById("content").innerHTML=`
- <h2>Wallet Management</h2><div class="panel">
- <label>Customer</label><select id="wcustomer">${customers.map(c=>`<option value="${esc(c.id)}">${esc(c.full_name||c.email||c.id)} — ${esc(c.email||"")}</option>`).join("")}</select>
+ <h2>Wallet Management</h2>
+ <div class="panel">
+ <label>Customer</label>
+ <select id="wcustomer">
+ ${customers.map(c=>`<option value="${esc(c.id)}">${esc(c.full_name||c.email||c.id)} — ${esc(c.email||"")}</option>`).join("")}
+ </select>
  <label>Amount</label><input id="wamount" type="number" step="0.01" min="0.01">
- <label>Transaction</label><select id="wtype"><option value="balance_add">Add Balance</option><option value="balance_deduct">Minus Balance</option><option value="profit">Add Profit</option><option value="applied_balance">Applied Balance</option></select>
+ <label>Transaction</label>
+ <select id="wtype">
+ <option value="balance_add">Add Balance</option>
+ <option value="balance_deduct">Minus Balance</option>
+ <option value="profit">Add Profit</option>
+ <option value="applied_balance">Applied Balance</option>
+ </select>
  <label>Description</label><input id="wdesc" placeholder="Payment / profit / adjustment details">
- <button class="green" onclick="walletAction()">Save Wallet Transaction</button></div>
- <div class="panel"><h3>Wallet History</h3><button class="gray" onclick="walletHistory()">Refresh</button><div id="walletList"></div></div>`;
+ <button class="green" onclick="walletAction()">Save Wallet Transaction</button>
+ </div>
+ <div class="panel"><h3>Wallet History</h3>
+ <button class="gray" onclick="walletHistory()">Refresh</button>
+ <div id="walletList"></div></div>`;
  await walletHistory();
 }
 async function walletAction(){
- let cid=val("wcustomer"),amount=Number(val("wamount")),type=val("wtype");
+ const cid=val("wcustomer"),amount=Number(val("wamount")),type=val("wtype");
  if(!cid||!amount||amount<=0)return note("Customer aur valid amount select karein",true);
- let {data:u}=await db.auth.getUser();
- let r=await db.from("wallet_transactions").insert({
- customer_id:cid,amount,transaction_type:type,status:"completed",
- description:val("wdesc")||type,reference_id:null
+ const r=await db.from("wallet_transactions").insert({
+  customer_id:cid,amount,transaction_type:type,status:"completed",
+  description:val("wdesc")||type,reference_id:null
  });
  if(r.error)return note(r.error.message,true);
- note("Wallet transaction saved");walletHistory();
+ note("Wallet transaction saved");
+ await walletHistory();
 }
 async function walletHistory(){
- let r=await db.from("wallet_transactions").select("*").order("created_at",{ascending:false}).limit(300);
+ const r=await db.from("wallet_transactions").select("*").order("created_at",{ascending:false}).limit(300);
  if(r.error)return note(r.error.message,true);
  document.getElementById("walletList").innerHTML=renderSimple(r.data||[]);
 }
 
+/* WITHDRAWALS */
 async function withdrawalsPage(){
- let r=await db.from("withdrawals").select("*").order("created_at",{ascending:false}).limit(300);
- if(r.error)return note(r.error.message,true);
+ await loadCustomers();
+ const r=await db.from("withdrawals").select("*").order("created_at",{ascending:false}).limit(300);
+ if(r.error)throw r.error;
  records=r.data||[];
- document.getElementById("content").innerHTML="<h2>Withdrawals</h2><div class='panel' id='withdrawList'></div>";
+
+ document.getElementById("content").innerHTML=
+ "<h2>Withdrawals</h2><div id='withdrawList'></div>";
+
  document.getElementById("withdrawList").innerHTML=records.map(x=>`
- <div class="panel"><b>${esc(customerNameFromLoaded(x.customer_id))}</b>
- <p>Customer ID: ${esc(x.customer_id)}</p><p>Amount: ${esc(x.amount)} | Method: ${esc(x.method)}</p>
- <p>Account Details: <pre>${esc(typeof x.account_details==="object"?JSON.stringify(x.account_details,null,2):x.account_details)}</pre></p>
+ <div class="panel">
+ <b>${esc(customerNameFromLoaded(x.customer_id))}</b>
+ <p>Customer ID: ${esc(x.customer_id)}</p>
+ <p>Amount: ${esc(x.amount)} | Method: ${esc(x.method)}</p>
+ <p>Account Details:</p>
+ <pre>${esc(typeof x.account_details==="object"?JSON.stringify(x.account_details,null,2):x.account_details)}</pre>
  <p>Status: ${esc(x.status)}</p>
  <button class="green" onclick="withdrawStatus('${esc(x.id)}','approved')">Paid / Approve</button>
- <button class="red" onclick="withdrawStatus('${esc(x.id)}','rejected')">Reject</button></div>`).join("")||"No withdrawal requests";
+ <button class="red" onclick="withdrawStatus('${esc(x.id)}','rejected')">Reject</button>
+ </div>`).join("")||"No withdrawal requests";
 }
-function customerNameFromLoaded(id){let c=customers.find(x=>x.id===id);return c?.full_name||c?.email||id}
 async function withdrawStatus(id,status){
- let noteText=prompt("Admin note (optional)","");if(noteText===null)return;
- let {error}=await db.from("withdrawals").update({status,admin_note:noteText}).eq("id",id);
- if(error)return note(error.message,true);note("Withdrawal updated");withdrawalsPage();
+ const adminNote=prompt("Admin note (optional)","");
+ if(adminNote===null)return;
+ const {error}=await db.from("withdrawals").update({
+  status,admin_note:adminNote
+ }).eq("id",id);
+ if(error)return note(error.message,true);
+ note("Withdrawal updated");
+ await withdrawalsPage();
 }
 
+/* KYC */
 async function kycPage(){
  await loadCustomers();
- let r=await db.from("kyc_submissions").select("*").order("created_at",{ascending:false}).limit(300);
- if(r.error)return note(r.error.message,true);
- document.getElementById("content").innerHTML="<h2>KYC Requests</h2><div id='kycList'></div>";
+ const r=await db.from("kyc_submissions").select("*").order("created_at",{ascending:false}).limit(300);
+ if(r.error)throw r.error;
+
+ document.getElementById("content").innerHTML=
+ "<h2>KYC Requests</h2><div id='kycList'></div>";
+
  document.getElementById("kycList").innerHTML=(r.data||[]).map(x=>`
- <div class="panel"><b>${esc(customerNameFromLoaded(x.customer_id))}</b>
+ <div class="panel">
+ <b>${esc(customerNameFromLoaded(x.customer_id))}</b>
  <p>Gmail: ${esc(customers.find(c=>c.id===x.customer_id)?.email||"Email not available")}</p>
  <p>Document: ${esc(x.document_type)} | Status: ${esc(x.status)}</p>
- <p><a href="${esc(x.document_url)}" target="_blank">Open KYC Document</a></p>
+ <p><a href="${esc(x.document_url)}" target="_blank" rel="noopener">Open KYC Document</a></p>
  <button class="green" onclick="kycStatus('${esc(x.id)}','approved')">Approve</button>
- <button class="red" onclick="kycStatus('${esc(x.id)}','rejected')">Reject</button></div>`).join("")||"No KYC requests";
+ <button class="red" onclick="kycStatus('${esc(x.id)}','rejected')">Reject</button>
+ </div>`).join("")||"No KYC requests";
 }
 async function kycStatus(id,status){
- let {error}=await db.from("kyc_submissions").update({status}).eq("id",id);
- if(error)return note(error.message,true);note("KYC updated");kycPage();
+ const {error}=await db.from("kyc_submissions").update({status}).eq("id",id);
+ if(error)return note(error.message,true);
+ note("KYC updated");
+ await kycPage();
 }
 
+/* CUSTOMER SERVICE */
 async function supportPage(){
  await loadCustomers();
- let r=await db.from("support_messages").select("*").order("created_at",{ascending:false}).limit(300);
- if(r.error)return note(r.error.message,true);
- document.getElementById("content").innerHTML="<h2>Customer Service</h2><div id='supportList'></div>";
+ const r=await db.from("support_messages").select("*").order("created_at",{ascending:false}).limit(300);
+ if(r.error)throw r.error;
+
+ document.getElementById("content").innerHTML=
+ "<h2>Customer Service</h2><div id='supportList'></div>";
+
  document.getElementById("supportList").innerHTML=(r.data||[]).map(x=>`
- <div class="panel"><b>${esc(customerNameFromLoaded(x.customer_id))}</b>
+ <div class="panel">
+ <b>${esc(customerNameFromLoaded(x.customer_id))}</b>
  <p>Gmail: ${esc(customers.find(c=>c.id===x.customer_id)?.email||"")}</p>
  <p>Customer Message: ${esc(x.message)}</p>
- <label>Your Reply</label><textarea id="reply_${esc(x.id)}">${esc(x.reply||"")}</textarea>
- <button class="green" onclick="sendReply('${esc(x.id)}')">Send Reply</button></div>`).join("")||"No messages";
+ <label>Your Reply</label>
+ <textarea id="reply_${esc(x.id)}">${esc(x.reply||"")}</textarea>
+ <button class="green" onclick="sendReply('${esc(x.id)}')">Send Reply</button>
+ </div>`).join("")||"No messages";
 }
 async function sendReply(id){
- let reply=document.getElementById("reply_"+id).value;
- let {error}=await db.from("support_messages").update({reply,status:"answered"}).eq("id",id);
- if(error)return note(error.message,true);note("Reply sent to customer");supportPage();
+ const el=document.getElementById("reply_"+id);
+ const reply=el.value;
+ const {error}=await db.from("support_messages").update({
+  reply,status:"answered"
+ }).eq("id",id);
+ if(error)return note(error.message,true);
+ note("Reply sent to customer");
+ await supportPage();
 }
 
+/* OTHER ADMIN TABLES */
 async function genericPage(table){
- let r=await db.from(table).select("*").limit(300);
- if(r.error){document.getElementById("content").innerHTML="<h2>"+names[table]+"</h2><p class='error'>"+esc(r.error.message)+"</p>";return}
+ const r=await db.from(table).select("*").limit(300);
+ if(r.error){
+  document.getElementById("content").innerHTML=
+  `<h2>${esc(names[table])}</h2><p class="error">${esc(r.error.message)}</p>`;
+  return;
+ }
  records=r.data||[];
+
  document.getElementById("content").innerHTML=`
- <h2>${names[table]}</h2><div class="panel">
+ <h2>${esc(names[table])}</h2>
+ <div class="panel">
  <button class="green" onclick="newGeneric('${table}')">Add Record</button>
  <button class="gray" onclick="genericPage('${table}')">Refresh</button>
- <div id="genericList">${genericTableHTML(table,records)}</div></div><div id="genericEditor"></div>`;
+ <div id="genericList">${genericTableHTML(table,records)}</div>
+ </div>
+ <div id="genericEditor"></div>`;
 }
 function genericTableHTML(table,data){
- if(!data.length)return"No records found";
- let keys=Object.keys(data[0]);
- return "<div class='tablewrap'><table><tr>"+keys.map(k=>"<th>"+esc(k)+"</th>").join("")+"<th>Actions</th></tr>"+
- data.map((r,i)=>"<tr>"+keys.map(k=>"<td>"+esc(typeof r[k]==="object"?JSON.stringify(r[k]):r[k])+"</td>").join("")+
- `<td><button onclick="editGeneric('${table}',${i})">Edit</button><button class="red" onclick="deleteGeneric('${table}',${i})">Delete</button></td></tr>`).join("")+"</table></div>";
+ if(!data.length)return "No records found";
+ const keys=Object.keys(data[0]);
+ return "<div class='tablewrap'><table><tr>"+
+ keys.map(k=>"<th>"+esc(k)+"</th>").join("")+"<th>Actions</th></tr>"+
+ data.map((r,i)=>"<tr>"+
+ keys.map(k=>"<td>"+esc(typeof r[k]==="object"?JSON.stringify(r[k]):r[k])+"</td>").join("")+
+ `<td><button onclick="editGeneric('${table}',${i})">Edit</button>
+ <button class="red" onclick="deleteGeneric('${table}',${i})">Delete</button></td></tr>`
+ ).join("")+"</table></div>";
 }
 function newGeneric(table){
- document.getElementById("genericEditor").innerHTML=`<div class="panel"><h3>Add Record</h3><textarea id="genericJSON" rows="9">{}</textarea><button class="green" onclick="saveGeneric('${table}','new')">Save</button></div>`;
+ document.getElementById("genericEditor").innerHTML=`
+ <div class="panel"><h3>Add Record</h3>
+ <textarea id="genericJSON" rows="9">{}</textarea>
+ <button class="green" onclick="saveGeneric('${table}','new')">Save</button>
+ </div>`;
 }
 function editGeneric(table,i){
- document.getElementById("genericEditor").innerHTML=`<div class="panel"><h3>Edit Record</h3><textarea id="genericJSON" rows="12">${esc(JSON.stringify(records[i],null,2))}</textarea><button class="green" onclick="saveGeneric('${table}','edit')">Update</button></div>`;
+ document.getElementById("genericEditor").innerHTML=`
+ <div class="panel"><h3>Edit Record</h3>
+ <textarea id="genericJSON" rows="12">${esc(JSON.stringify(records[i],null,2))}</textarea>
+ <button class="green" onclick="saveGeneric('${table}','edit')">Update</button>
+ </div>`;
 }
 async function saveGeneric(table,mode){
- let obj;try{obj=JSON.parse(document.getElementById("genericJSON").value)}catch(e){return note("Invalid JSON",true)}
+ let obj;
+ try {
+  obj=JSON.parse(document.getElementById("genericJSON").value);
+ } catch(e) {
+  return note("Invalid JSON",true);
+ }
  let r;
- if(mode==="new")r=await db.from(table).insert(obj);
- else{let id=obj.id;if(!id)return note("Record ID missing",true);delete obj.id;r=await db.from(table).update(obj).eq("id",id)}
- if(r.error)return note(r.error.message,true);note("Saved");genericPage(table);
+ if(mode==="new") {
+  r=await db.from(table).insert(obj);
+ } else {
+  const id=obj.id;
+  if(!id)return note("Record ID missing",true);
+  delete obj.id;
+  r=await db.from(table).update(obj).eq("id",id);
+ }
+ if(r.error)return note(r.error.message,true);
+ note("Saved");
+ await genericPage(table);
 }
 async function deleteGeneric(table,i){
- let id=records[i]?.id;if(!id||!confirm("Delete this record?"))return;
- let {error}=await db.from(table).delete().eq("id",id);
- if(error)return note(error.message,true);note("Deleted");genericPage(table);
+ const id=records[i]?.id;
+ if(!id||!confirm("Delete this record?"))return;
+ const {error}=await db.from(table).delete().eq("id",id);
+ if(error)return note(error.message,true);
+ note("Deleted");
+ await genericPage(table);
 }
+
+/* START */
 check();
 </script>
 </body>
