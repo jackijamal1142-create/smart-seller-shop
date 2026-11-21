@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -44,6 +45,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere}
 .profile-modal-box{background:white;max-width:900px;margin:25px auto;padding:20px;border-radius:12px}
 .profile-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
 .profile-field{background:#f3f5fa;padding:12px;border-radius:8px;overflow-wrap:anywhere}
+.kyc-image{display:block;width:100%;max-width:420px;max-height:420px;object-fit:contain;border-radius:10px;border:1px solid #ddd;margin:12px 0}
 .chat-bubble{padding:12px;border-radius:10px;margin:9px 0;max-width:85%;overflow-wrap:anywhere}
 .chat-customer{background:#edf1fa;margin-right:auto}
 .chat-admin{background:#e1f6ef;margin-left:auto}
@@ -191,7 +193,7 @@ function renderSimple(data){
  data.map(x=>"<tr>"+keys.map(k=>"<td>"+esc(typeof x[k]==="object"?JSON.stringify(x[k]):x[k])+"</td>").join("")+"</tr>").join("")+"</table></div>";
 }
 
-/* CUSTOMER PROFILE */
+/* CUSTOMER PROFILE - OTHER ADMIN SECTIONS */
 async function openCustomerProfile(id){
  const modal=document.getElementById("customerProfileModal");
  const box=document.getElementById("customerProfileContent");
@@ -221,7 +223,94 @@ async function openCustomerProfile(id){
   `;
  }catch(e){box.innerHTML="<p class='error'>"+esc(e.message)+"</p>"}
 }
-function closeCustomerProfile(){document.getElementById("customerProfileModal").style.display="none"}
+
+/* KYC CUSTOMER PROFILE - ONLY PERSONAL DETAILS AND KYC */
+async function openKycCustomer(id){
+ const modal=document.getElementById("customerProfileModal");
+ const box=document.getElementById("customerProfileContent");
+
+ modal.style.display="block";
+ box.innerHTML="Loading KYC details...";
+
+ try{
+  const [pr,kr]=await Promise.all([
+   db.from("profiles").select("*").eq("id",id).maybeSingle(),
+   db.from("kyc_submissions").select("*")
+    .eq("customer_id",id)
+    .order("created_at",{ascending:false})
+  ]);
+
+  if(pr.error)throw pr.error;
+  if(kr.error)throw kr.error;
+
+  const p=pr.data||{};
+  const records=kr.data||[];
+
+  const name=p.full_name||"Name not available";
+  const email=p.email||"Email not available";
+  const phone=p.phone||"Phone not available";
+
+  const kycHtml=records.map(k=>{
+   const image=k.document_url||k.image_url||k.image||"";
+
+   return `
+    <div class="panel">
+     <h3>KYC Document</h3>
+     <p><b>Document Type:</b> ${esc(k.document_type||"Not available")}</p>
+     <p><b>Status:</b> ${esc(k.status||"Pending")}</p>
+
+     ${image?`
+      <a href="${esc(image)}" target="_blank" rel="noopener">
+       <img class="kyc-image"
+        src="${esc(image)}"
+        alt="Customer KYC Document">
+      </a>
+      <p>
+       <a href="${esc(image)}" target="_blank" rel="noopener">
+        Open Original KYC Picture
+       </a>
+      </p>
+     `:`
+      <p class="error">KYC picture not available.</p>
+     `}
+
+     <p class="muted">Submitted: ${esc(k.created_at||"")}</p>
+    </div>
+   `;
+  }).join("");
+
+  box.innerHTML=`
+   <h2>Customer KYC Details</h2>
+
+   <div class="profile-grid">
+    <div class="profile-field">
+     <b>CUSTOMER NAME</b>
+     <p>${esc(name)}</p>
+    </div>
+
+    <div class="profile-field">
+     <b>GMAIL</b>
+     <p>${esc(email)}</p>
+    </div>
+
+    <div class="profile-field">
+     <b>PHONE</b>
+     <p>${esc(phone)}</p>
+    </div>
+   </div>
+
+   <h3>KYC Documents (${records.length})</h3>
+   ${kycHtml||"No KYC documents found."}
+  `;
+
+ }catch(e){
+  box.innerHTML="<p class='error'>"+esc(e.message)+"</p>";
+ }
+}
+
+function closeCustomerProfile(){
+ document.getElementById("customerProfileModal").style.display="none";
+}
 
 async function go(page,btn){
  current=page;const version=++pageVersion;
@@ -496,7 +585,6 @@ async function loadOrders(){
 
  const allRows=r.data||[];
 
- // Completed orders ki wallet processing tamam records par hogi
  for(const order of allRows){
   if(!pageIs("orders",version))return;
   if(String(order.status).toLowerCase()==="completed"){
@@ -551,7 +639,6 @@ async function loadOrders(){
   totalCustomerAvailableBalance+=balance;
  });
 
- // Sirf selected customer ke orders display honge
  const visibleRows=selectedCustomer
   ?allRows.filter(x=>String(x.customer_id)===selectedCustomer)
   :allRows;
@@ -711,19 +798,59 @@ async function withdrawStatus(id,status){
 
 /* KYC */
 async function kycPage(version=pageVersion){
- await loadCustomers();if(!pageIs("kyc_submissions",version))return;
- const r=await db.from("kyc_submissions").select("*").order("created_at",{ascending:false}).limit(300);
- if(r.error)throw r.error;if(!pageIs("kyc_submissions",version))return;
- putContent(`<h2>KYC Requests</h2><button class="gray" onclick="kycPage()">Refresh</button><div id="kycList"></div>`,"kyc_submissions",version);
- const target=document.getElementById("kycList");if(!target)return;
+ await loadCustomers();
+ if(!pageIs("kyc_submissions",version))return;
+
+ const r=await db.from("kyc_submissions")
+  .select("*")
+  .order("created_at",{ascending:false})
+  .limit(300);
+
+ if(r.error)throw r.error;
+ if(!pageIs("kyc_submissions",version))return;
+
+ putContent(`
+  <h2>KYC Requests</h2>
+  <button class="gray" onclick="kycPage()">Refresh</button>
+  <div id="kycList"></div>
+ `,"kyc_submissions",version);
+
+ const target=document.getElementById("kycList");
+ if(!target)return;
+
  target.innerHTML=(r.data||[]).map(x=>{
   const pending=String(x.status||"").toLowerCase().trim()==="pending";
-  return `<div class="panel"><b>${customerLink(x.customer_id)}</b><p><button onclick="openCustomerProfile('${esc(x.customer_id)}')">View Customer Details</button></p>
-  <p>Document: ${esc(x.document_type)} | Status: <b>${esc(x.status)}</b></p>
-  <p><a href="${esc(x.document_url)}" target="_blank" rel="noopener">Open KYC Document</a></p>
-  ${pending?`<button class="green" onclick="kycStatus('${esc(x.id)}','approved')">Approve</button><button class="red" onclick="kycStatus('${esc(x.id)}','rejected')">Reject</button>`:`<p class="muted">Decision already made. No further action allowed.</p>`}</div>`;
+  const customer=customers.find(c=>String(c.id)===String(x.customer_id));
+  const name=customer?.full_name||"Name not available";
+  const email=customer?.email||"Email not available";
+
+  return `
+   <div class="panel">
+    <button class="green"
+     onclick="openKycCustomer('${esc(x.customer_id)}')">
+     ${esc(name)} — ${esc(email)}
+    </button>
+
+    <p>Document: ${esc(x.document_type||"Not available")}</p>
+    <p>Status: <b>${esc(x.status||"Pending")}</b></p>
+
+    ${pending?`
+     <button class="green"
+      onclick="kycStatus('${esc(x.id)}','approved')">
+      Approve
+     </button>
+     <button class="red"
+      onclick="kycStatus('${esc(x.id)}','rejected')">
+      Reject
+     </button>
+    `:`
+     <p class="muted">Decision already made. No further action allowed.</p>
+    `}
+   </div>
+  `;
  }).join("")||"No KYC requests.";
 }
+
 async function kycStatus(id,status){
  if(!["approved","rejected"].includes(status))return note("Invalid KYC status.",true);
  if(!confirm("Are you sure you want to "+(status==="approved"?"APPROVE":"REJECT")+" this KYC request?"))return;
@@ -841,7 +968,3 @@ check();
 </script>
 </body>
 </html>
-
-```
-
-**Bas itna karein:** GitHub mein Admin HTML file khol kar purana code hata dein, ye poora code paste karein aur Commit changes kar dein.
