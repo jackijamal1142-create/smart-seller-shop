@@ -936,47 +936,52 @@ async function loadHomeData(){
 
 async function loadKyc(user){
  if(!user)return;
+ const statusEl=$("verificationStatus"),section=$("kycSection"),messageEl=$("kycStatus");
+ if(statusEl)statusEl.textContent="Checking KYC...";
+ if(messageEl)messageEl.textContent="Checking your account verification...";
  try{
   const {data:authData,error:authError}=await db.auth.getUser();
   if(authError)throw authError;
   const loggedInUser=authData?.user||user;
-  const {data,error}=await db.from("kyc_submissions").select("*").eq("customer_id",loggedInUser.id).order("created_at",{ascending:false});
+  if(!loggedInUser?.id)throw new Error("No authenticated customer ID found.");
+  const {data,error}=await db.from("kyc_submissions").select("id,customer_id,status,created_at").eq("customer_id",loggedInUser.id).order("created_at",{ascending:false});
   if(error)throw error;
 
   const records=data||[];
   const normalizeStatus=value=>String(value||"").trim().toLowerCase().replace(/[^a-z]/g,"");
-  const approved=records.find(row=>/^ap+r?ov/.test(normalizeStatus(row.status))||/^verif/.test(normalizeStatus(row.status)));
-  const pending=records.find(row=>["pending","processing","under review"].includes(normalizeStatus(row.status)));
+  const approved=records.find(row=>/^(approved|aproved|approv|apro|verified|verify)$/.test(normalizeStatus(row.status))||/^approv/.test(normalizeStatus(row.status))||/^apro(v|ve|ved)/.test(normalizeStatus(row.status))||/^verif/.test(normalizeStatus(row.status)));
+  const pending=records.find(row=>["pending","processing","underreview"].includes(normalizeStatus(row.status)));
   const rejected=records.find(row=>normalizeStatus(row.status)==="rejected");
 
   isKycApproved=!!approved;
   isKycPending=!isKycApproved&&!!pending;
 
   if(isKycApproved){
-   $("verificationStatus").textContent="✓ KYC VERIFIED";
-   $("verificationStatus").className="status";
-   $("kycSection").classList.add("hidden");
+   statusEl.textContent="✓ KYC VERIFIED";
+   statusEl.className="status";
+   section.classList.add("hidden");
    $("kycLockBanner").classList.add("hidden");
-   $("kycStatus").textContent="Your identity is verified. KYC resubmission is disabled.";
+   messageEl.textContent="Your identity is verified. KYC resubmission is disabled.";
   }else if(isKycPending){
-   $("verificationStatus").textContent="KYC PENDING APPROVAL";
-   $("verificationStatus").className="status pending";
-   $("kycSection").classList.add("hidden");
-   $("kycStatus").textContent="Your KYC is already submitted. Please wait for admin approval. You do not need to submit it again.";
+   statusEl.textContent="KYC PENDING APPROVAL";
+   statusEl.className="status pending";
+   section.classList.add("hidden");
+   messageEl.textContent="Your KYC is already submitted. Please wait for admin approval. You do not need to submit it again.";
   }else{
-   $("verificationStatus").textContent=rejected?"KYC REJECTED":"KYC NOT SUBMITTED";
-   $("verificationStatus").className="status "+(rejected?"rejected":"pending");
-   $("kycSection").classList.remove("hidden");
-   $("kycStatus").textContent=rejected?"Your KYC was rejected. Please submit a new document.":"Please submit your identity document.";
+   statusEl.textContent=rejected?"KYC REJECTED":"KYC NOT SUBMITTED";
+   statusEl.className="status "+(rejected?"rejected":"pending");
+   section.classList.remove("hidden");
+   messageEl.textContent=rejected?"Your KYC was rejected. Please submit a new document.":"Please submit your identity document.";
   }
+  if(messageEl)messageEl.textContent+=" (Debug: account "+loggedInUser.id+"; rows "+records.length+"; statuses "+records.map(row=>String(row.status||"blank")).join(", ")+")";
   updateKycLocks();
  }catch(err){
   isKycApproved=false;
   isKycPending=false;
-  $("verificationStatus").textContent="Verification status unavailable";
-  $("verificationStatus").className="status pending";
-  $("kycSection").classList.add("hidden");
-  $("kycStatus").textContent="KYC error: "+err.message;
+  statusEl.textContent="Verification status unavailable";
+  statusEl.className="status pending";
+  section.classList.add("hidden");
+  messageEl.textContent="KYC read error: "+err.message;
   updateKycLocks();
  }
 }
