@@ -25,14 +25,14 @@ button:disabled{opacity:.6;cursor:wait}
 .hidden{display:none!important}
 .note{text-align:center;color:#68758a;font-size:13px}
 .message{text-align:center;color:#1769d2;font-size:14px;overflow-wrap:anywhere}
-.status{background:#fff4d8;color:#805600;padding:14px;border-radius:8px;text-align:center;font-weight:bold}
+.status{background:#e4f8eb;color:#16733a;padding:14px;border-radius:8px;text-align:center;font-weight:bold}
+.pending{background:#fff4d8;color:#805600}
 .small{font-size:13px;color:#65718a}
 .logout{background:#65758b}
 .linkButton{background:none;color:#1769d2;text-decoration:underline;padding:5px;margin:4px 0}
 hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 .product-card{border:1px solid #ddd;padding:15px;margin:12px 0;border-radius:10px;background:white}
 .product-card h3{margin-top:5px}
-.product-card img{width:100%;max-height:180px;object-fit:contain}
 .product-price{font-size:18px;font-weight:bold;color:#1769d2}
 </style>
 </head>
@@ -105,7 +105,10 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 
 <button type="button" onclick="loadProducts()">Refresh Products</button>
 
-<div class="status" id="verificationStatus">Verification pending</div>
+<div class="status pending" id="verificationStatus">Verification pending</div>
+
+<div id="kycSection">
+
 <p class="note">Please complete your KYC verification.</p>
 
 <hr>
@@ -113,7 +116,9 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 <h3>Complete KYC</h3>
 
 <form id="kycForm">
+
 <label class="small">Select document type</label>
+
 <select id="documentType" required>
 <option value="">Select Document</option>
 <option value="Passport">Passport</option>
@@ -122,12 +127,16 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 </select>
 
 <label class="small">Upload document photo</label>
+
 <input id="kycFile" type="file" accept="image/*,.pdf" required>
 
 <button id="kycButton" type="submit">Submit KYC</button>
+
 </form>
 
 <p id="kycStatus" class="message"></p>
+
+</div>
 
 <hr>
 
@@ -147,10 +156,7 @@ hr{border:0;border-top:1px solid #e5eaf1;margin:20px 0}
 const SUPABASE_URL = "https://biiagnjcyzvqbezabpxz.supabase.co";
 const SUPABASE_KEY = "sb_publishable_QrBZWYfua111aN24MjlXHw_c-Cf5yB1";
 
-const db = window.supabase.createClient(
-    SUPABASE_URL,
-    SUPABASE_KEY
-);
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const $ = id => document.getElementById(id);
 
@@ -163,7 +169,7 @@ function hideAllForms() {
     .forEach(id => $(id).classList.add("hidden"));
 }
 
-// LOGIN SCREEN
+// LOGIN AND REGISTER SCREEN
 
 window.showLogin = function() {
     hideAllForms();
@@ -193,8 +199,6 @@ function showNewPassword() {
     $("dashboard").classList.add("hidden");
     hideAllForms();
     $("newPasswordForm").classList.remove("hidden");
-    $("loginTab").classList.remove("active");
-    $("registerTab").classList.remove("active");
     msg("Enter your new password.");
 }
 
@@ -313,13 +317,10 @@ $("newPasswordForm").addEventListener("submit", async function(e) {
     const password = $("newPassword").value;
     const confirm = $("confirmNewPassword").value;
 
-    if (password.length < 8) {
-        msg("Password must be at least 8 characters.");
-        return;
-    }
-
-    if (password !== confirm) {
-        msg("Passwords do not match.");
+    if (password.length < 8 || password !== confirm) {
+        msg(password.length < 8
+            ? "Password must be at least 8 characters."
+            : "Passwords do not match.");
         return;
     }
 
@@ -327,9 +328,7 @@ $("newPasswordForm").addEventListener("submit", async function(e) {
     msg("Updating password...");
 
     try {
-        const {error} = await db.auth.updateUser({
-            password: password
-        });
+        const {error} = await db.auth.updateUser({password});
 
         if (error) throw error;
 
@@ -347,6 +346,7 @@ $("newPasswordForm").addEventListener("submit", async function(e) {
 });
 
 // LOAD PRODUCTS
+// Uses only the columns confirmed in your products table.
 
 window.loadProducts = async function() {
     const box = $("productsList");
@@ -356,7 +356,7 @@ window.loadProducts = async function() {
     try {
         const {data,error} = await db
             .from("products")
-            .select("id,name,price,category,image")
+            .select("id,name,price,category")
             .order("id", {ascending:false});
 
         if (error) throw error;
@@ -371,16 +371,6 @@ window.loadProducts = async function() {
         data.forEach(product => {
             const item = document.createElement("div");
             item.className = "product-card";
-
-            if (product.image) {
-                const img = document.createElement("img");
-                img.src = product.image;
-                img.alt = product.name || "Product";
-                img.onerror = function() {
-                    this.style.display = "none";
-                };
-                item.appendChild(img);
-            }
 
             const title = document.createElement("h3");
             title.textContent = product.name || "Product";
@@ -417,37 +407,7 @@ async function loadDashboard(user) {
     msg("");
 
     await loadProducts();
-    await 
-async function loadKyc(user) {
-    try {
-        const {data,error} = await db
-            .from("kyc_submissions")
-            .select("status")
-            .eq("customer_id", user.id)
-            .order("created_at", {ascending:false})
-            .limit(1);
-
-        if (error) throw error;
-
-        if (data && data.length > 0 &&
-            data[0].status.toLowerCase() === "approved") {
-
-            $("verificationStatus").textContent = "Verified";
-            $("kycForm").classList.add("hidden");
-            $("kycStatus").textContent = "";
-
-        } else {
-            $("verificationStatus").textContent = "Verification pending";
-            $("kycForm").classList.remove("hidden");
-            $("kycStatus").textContent = "";
-        }
-
-    } catch(error) {
-        console.error("KYC error:", error);
-        $("verificationStatus").textContent = "Verification status unavailable";
-    }
-}
-
+    await loadKyc(user);
 }
 
 // LOAD KYC STATUS
@@ -456,32 +416,44 @@ async function loadKyc(user) {
     try {
         const {data,error} = await db
             .from("kyc_submissions")
-            .select("document_type,status,admin_note,created_at")
+            .select("status,created_at")
             .eq("customer_id", user.id)
             .order("created_at", {ascending:false})
             .limit(1);
 
         if (error) throw error;
 
-        if (data && data.length > 0) {
-            const item = data[0];
+        if (data && data.length > 0 &&
+            String(data[0].status).toLowerCase() === "approved") {
 
-            $("kycStatus").textContent =
-                "Your KYC: " + item.status +
-                (item.admin_note ? " — Admin note: " + item.admin_note : "");
+            // APPROVED: SHOW ONLY VERIFIED
 
-            $("verificationStatus").textContent =
-                "Verification: " + item.status;
+            $("verificationStatus").textContent = "Verified";
+            $("verificationStatus").classList.remove("pending");
+
+            $("kycSection").classList.add("hidden");
+            $("kycStatus").textContent = "";
 
         } else {
-            $("kycStatus").textContent = "No KYC submitted yet.";
+
+            // PENDING OR NOT SUBMITTED
+
             $("verificationStatus").textContent = "Verification pending";
+            $("verificationStatus").classList.add("pending");
+
+            $("kycSection").classList.remove("hidden");
+
+            if (data && data.length > 0) {
+                $("kycStatus").textContent = "Your KYC is pending approval.";
+            } else {
+                $("kycStatus").textContent = "";
+            }
         }
 
     } catch(error) {
         console.error("KYC error:", error);
-        $("kycStatus").textContent =
-            "KYC status error: " + error.message;
+        $("verificationStatus").textContent = "Verification status unavailable";
+        $("kycSection").classList.remove("hidden");
     }
 }
 
@@ -489,6 +461,9 @@ async function loadKyc(user) {
 
 $("kycForm").addEventListener("submit", async function(e) {
     e.preventDefault();
+
+    $("kycButton").disabled = true;
+    $("kycStatus").textContent = "Uploading document...";
 
     try {
         const {data:authData,error:authError} = await db.auth.getUser();
@@ -498,25 +473,19 @@ $("kycForm").addEventListener("submit", async function(e) {
         const user = authData.user;
 
         if (!user) {
-            msg("Please login again.");
-            return;
+            throw new Error("Please login again.");
         }
 
         const file = $("kycFile").files[0];
         const type = $("documentType").value;
 
         if (!file || !type) {
-            $("kycStatus").textContent = "Please select a document and file.";
-            return;
+            throw new Error("Please select a document and file.");
         }
 
         if (file.size > 5 * 1024 * 1024) {
-            $("kycStatus").textContent = "File must be smaller than 5 MB.";
-            return;
+            throw new Error("File must be smaller than 5 MB.");
         }
-
-        $("kycButton").disabled = true;
-        $("kycStatus").textContent = "Uploading document...";
 
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
         const path = user.id + "/" + Date.now() + "_" + safeName;
@@ -538,9 +507,9 @@ $("kycForm").addEventListener("submit", async function(e) {
 
         if (insertError) throw insertError;
 
-        $("kycStatus").textContent = "KYC submitted successfully. Status: Pending.";
-        $("verificationStatus").textContent = "Verification pending";
         $("kycForm").reset();
+
+        await loadKyc(user);
 
     } catch(error) {
         $("kycStatus").textContent = "KYC error: " + error.message;
